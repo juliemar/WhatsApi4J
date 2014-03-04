@@ -1,5 +1,6 @@
 package net.sumppen.whatsapi4j;
 
+import java.net.Socket;
 import java.util.List;
 import java.util.Map;
 
@@ -204,6 +205,11 @@ public class EventManager {
 
 	public void fireGetGroupParticipants(String phoneNumber, String groupId,
 			Map<String, String> groupList) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	public void fireDisconnect(String phoneNumber, Socket socket) {
 		// TODO Auto-generated method stub
 		
 	}
