@@ -3,6 +3,7 @@ package net.sumppen.whatsapi4j;
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
@@ -13,6 +14,7 @@ import java.net.Socket;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.security.InvalidKeyException;
+import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.security.spec.InvalidKeySpecException;
@@ -26,9 +28,12 @@ import java.util.Map;
 import javax.ws.rs.client.Client;
 import javax.ws.rs.client.ClientBuilder;
 
+import org.apache.commons.codec.binary.Base64;
 import org.apache.log4j.Logger;
 import org.json.JSONException;
 import org.json.JSONObject;
+
+import com.google.common.collect.Lists;
 
 /**
  * Java adaptation of PHP WhatsAPI by venomous0x
@@ -130,13 +135,15 @@ public class WhatsApi {
 	private BinTreeNodeReader reader;
 	private KeyStream inputKey;
 	private KeyStream outputKey;
-	private String serverReceivedId;
+	private List<String> serverReceivedId = new LinkedList<String>();
 	private List<ProtocolNode> messageQueue = new LinkedList<ProtocolNode>();
 	private String lastId;
 	private List<ProtocolNode> outQueue = new LinkedList<ProtocolNode>();
 	private final EventManager eventManager = new EventManager();
 	private int messageCounter = 0;
 	private final List<Country> countries;
+	private Map<String,Map<String,Object>> mediaQueue = new HashMap<String, Map<String,Object>>();
+	private File mediaFile;
 
 	public WhatsApi(String username, String identity, String nickname) throws NoSuchAlgorithmException, WhatsAppException {
 		writer = new BinTreeNodeWriter(dictionary);
@@ -590,7 +597,7 @@ public class WhatsApi {
 		throw new WhatsAppException("Not yet implemented");
 	}
 	
-	public void sendMessageAudio(String to, String filepath) throws WhatsAppException {
+	public void sendMessageAudio(String to, File filepath) throws WhatsAppException {
 		sendMessageAudio(to,filepath,false);
 	}
 
@@ -599,18 +606,118 @@ public class WhatsApi {
      *
      * @param String to
      *   The recipient.
-     * @param String filepath
-     *   The url/uri to the audio file.
+     * @param File file
+     *   The audio file.
      * @param  boolean storeURLmedia Keep copy of file
      * @return boolean
      * @throws WhatsAppException 
      */
-	public boolean sendMessageAudio(String to, String filepath, boolean storeURLmedia) throws WhatsAppException {
-		//TODO implement this
-		throw new WhatsAppException("Not yet implemented");
+	public boolean sendMessageAudio(String to, File file, boolean storeURLmedia) throws WhatsAppException {
+        String[] allowedExtensions = { "3gp", "caf", "wav", "mp3", "mp4", "wma", "ogg", "aif", "aac", "m4a" };
+        int size = 10 * 1024 * 1024; // Easy way to set maximum file size for this media type.
+        try {
+			return sendCheckAndSendMedia(file, size, to, "audio", Lists.newArrayList(allowedExtensions), storeURLmedia);
+		} catch (Exception e) {
+			log.warn("Exception sending audio",e);
+			throw new WhatsAppException(e);
+		}
 	}
 	
     /**
+     * Checks that the media file to send is of allowable filetype and within size limits.
+     *
+     * @param File file The media file
+     * @param int maxSize Maximim filesize allowed for media type
+     * @param String to Recipient ID/number
+     * @param String type media filetype. 'audio', 'video', 'image'
+     * @param String[] allowedExtensions An array of allowable file types for the media file
+     * @param boolean storeURLmedia Keep a copy of the media file
+     * @return boolean
+     * @throws IOException 
+     * @throws InvalidTokenException 
+     * @throws InvalidMessageException 
+     * @throws IncompleteMessageException 
+     * @throws WhatsAppException 
+     * @throws JSONException 
+     * @throws NoSuchAlgorithmException 
+     */
+    private boolean sendCheckAndSendMedia(File file, int maxSize, String to,
+			String type, List<String> allowedExtensions, boolean storeURLmedia) throws WhatsAppException, IncompleteMessageException, InvalidMessageException, InvalidTokenException, IOException, JSONException, NoSuchAlgorithmException {
+    	if(file.length() <= maxSize && file.isFile() && file.length() > 0) {
+            String fileName = file.getName();
+			int lastIndexOf = fileName.lastIndexOf('.')+1;
+			String extension = fileName.substring(lastIndexOf);
+			if (allowedExtensions.contains(extension)) {
+                String b64hash = base64_encode(hash_file("sha256", file, true));
+                //request upload
+                sendRequestFileUpload(b64hash, type, file, to);
+//                processTempMediaFile(storeURLmedia);
+                return true;
+            } else {
+                //Not allowed file type.
+//                processTempMediaFile(storeURLmedia);
+                return false;
+            }
+        } else {
+            //Didn't get media file details.
+            return false;
+        }
+	}
+
+	private void sendRequestFileUpload(String b64hash, String type, File file,
+			String to) throws WhatsAppException, IncompleteMessageException, InvalidMessageException, InvalidTokenException, IOException, JSONException, NoSuchAlgorithmException {
+		mediaFile = file;
+		Map<String,String> hash = new HashMap<String, String>();
+		hash.put("xmlns", "w:m");
+		hash.put("hash", b64hash);
+		hash.put("type", type);
+		hash.put("size", Long.toString(file.length()));
+		ProtocolNode mediaNode = new ProtocolNode("media", hash, null, null);
+		hash = new HashMap<String, String>();
+		String id = createMsgId("upload");
+		hash.put("id", id);
+		hash.put("to", WHATSAPP_SERVER);
+		hash.put("type", "set");
+		ProtocolNode node = new ProtocolNode("iq", hash, Lists.newArrayList(mediaNode), null);
+
+		/*
+		 * TODO support for multiple recipients
+		 *  if (!is_array($to)) {
+         *    $to = $this->getJID($to);
+         *	}
+         *
+		 */
+		Map<String,Object> map = new HashMap<String, Object>();
+		map.put("messageNode", node);
+		map.put("file", file);
+		map.put("to", to);
+		mediaQueue.put(id,map);
+		sendNode(node);
+		waitForServer(id);
+	}
+
+	private String base64_encode(byte[] data) {
+		byte[] enc = Base64.encodeBase64(data);
+		return new String(enc);
+	}
+
+	private byte[] hash_file(String string, File file, boolean b) throws NoSuchAlgorithmException, IOException {
+        MessageDigest md;
+
+        md = MessageDigest.getInstance("SHA-256");
+        FileInputStream fis = new FileInputStream(file);
+        
+        byte[] dataBytes = new byte[1024];
+ 
+        int nread = 0; 
+        while ((nread = fis.read(dataBytes)) != -1) {
+          md.update(dataBytes, 0, nread);
+        };
+        byte[] mdbytes = md.digest();        
+        return mdbytes;
+	}
+
+	/**
      * Send the composing message status. When typing a message.
      *
      * @param String to
@@ -972,7 +1079,7 @@ public class WhatsApi {
 		return true;
 	}
 
-	private void doLogin() throws IOException, IncompleteMessageException, InvalidMessageException, InvalidTokenException, NoSuchAlgorithmException, InvalidKeySpecException, InvalidKeyException, WhatsAppException {
+	private void doLogin() throws IOException, IncompleteMessageException, InvalidMessageException, InvalidTokenException, NoSuchAlgorithmException, InvalidKeySpecException, InvalidKeyException, WhatsAppException, JSONException {
 		writer.resetKey();
 		reader.resetKey();
 		String resource = WHATSAPP_DEVICE + "-" + WHATSAPP_VER + "-" + PORT;
@@ -1119,7 +1226,7 @@ public class WhatsApi {
 
 	}
 
-	private void processInboundData(byte[] readData) throws IncompleteMessageException, InvalidMessageException, InvalidTokenException, IOException, WhatsAppException {
+	private void processInboundData(byte[] readData) throws IncompleteMessageException, InvalidMessageException, InvalidTokenException, IOException, WhatsAppException, JSONException, NoSuchAlgorithmException {
 		ProtocolNode node = reader.nextTree(readData);
 		if(node != null) {
 			processInboundDataNode(node);
@@ -1135,9 +1242,11 @@ public class WhatsApi {
 	 * @throws InvalidMessageException 
 	 * @throws IncompleteMessageException 
 	 * @throws WhatsAppException 
+	 * @throws JSONException 
+	 * @throws NoSuchAlgorithmException 
 	 * 
 	 */
-	private void processInboundDataNode(ProtocolNode node) throws IncompleteMessageException, InvalidMessageException, InvalidTokenException, IOException, WhatsAppException {
+	private void processInboundDataNode(ProtocolNode node) throws IncompleteMessageException, InvalidMessageException, InvalidTokenException, IOException, WhatsAppException, JSONException, NoSuchAlgorithmException {
 		while (node != null) {
 			ProtocolTag tag;
 			try {
@@ -1168,6 +1277,7 @@ public class WhatsApi {
 				break;
 			case IQ:
 				processIq(node);
+				break;
 			case STREAM_ERROR:
 				throw new WhatsAppException("stream:error received: ");
 			case PING:
@@ -1185,7 +1295,7 @@ public class WhatsApi {
 		}
 	}
 
-	private void processIq(ProtocolNode node) throws IOException, WhatsAppException {
+	private void processIq(ProtocolNode node) throws IOException, WhatsAppException, IncompleteMessageException, InvalidMessageException, InvalidTokenException, JSONException, NoSuchAlgorithmException {
 		if (node.getAttribute("type").equals("get")
 				&& ProtocolTag.valueOf(node.getChild(0).getTag()) == ProtocolTag.PING) {
 			eventManager().firePing(
@@ -1198,7 +1308,7 @@ public class WhatsApi {
 			if(log.isDebugEnabled()) {
 				log.debug("processIq: setting received id to "+node.getAttribute("id"));
 			}
-			serverReceivedId = node.getAttribute("id");
+			serverReceivedId.add(node.getAttribute("id"));
 			if (node.getChild(0) != null &&
 					node.getChild(0).getTag().equals(ProtocolTag.QUERY)) {
 				if (node.getChild(0).getAttribute("xmlns").equals("jabber:iq:privacy")) {
@@ -1292,7 +1402,7 @@ public class WhatsApi {
 
 		}
 		if (node.getTag().equals("iq") && node.getAttribute("type").equals("error")) {
-			serverReceivedId = node.getAttribute("id");
+			serverReceivedId.add(node.getAttribute("id"));
 		}
 
 	}
@@ -1303,102 +1413,113 @@ public class WhatsApi {
 	 * @param ProtocolNode $node
 	 *  Message node
 	 * @return bool
+	 * @throws WhatsAppException 
+	 * @throws InvalidTokenException 
+	 * @throws InvalidMessageException 
+	 * @throws IncompleteMessageException 
+	 * @throws IOException 
+	 * @throws JSONException 
+	 * @throws NoSuchAlgorithmException 
 	 */
-	private boolean processUploadResponse(ProtocolNode node) {
+	private boolean processUploadResponse(ProtocolNode node) throws IOException, IncompleteMessageException, InvalidMessageException, InvalidTokenException, WhatsAppException, JSONException, NoSuchAlgorithmException {
+		String url = null;
+		String filesize = null;
+		String filetype = null;
+		String filename = null;
+		String to = null;
 		String id = node.getAttribute("id");
-		return false;
-		/* TODO
-        $messageNode = mediaQueue[$id];
-        if ($messageNode == null) {
+        Map<String, Object> messageNode = mediaQueue.get(id);
+        if (messageNode == null) {
             //message not found, can't send!
-            $this->eventManager()->fireMediaUploadFailed(
-                $this->phoneNumber,
-                $id,
-                $node,
-                $messageNode,
+            eventManager().fireMediaUploadFailed(
+                phoneNumber,
+                id,
+                node,
+                messageNode,
                 "Message node not found in queue"
             );
             return false;
         }
 
-        $duplicate = node.getChild("duplicate");
-        if ($duplicate != null) {
+        ProtocolNode duplicate = node.getChild("duplicate");
+        if (duplicate != null) {
             //file already on whatsapp servers
-            $url = $duplicate->getAttribute("url");
-            $filesize = $duplicate->getAttribute("size");
-//            $mimetype = $duplicate->getAttribute("mimetype");
-//            $filehash = $duplicate->getAttribute("filehash");
-            $filetype = $duplicate->getAttribute("type");
-//            $width = $duplicate->getAttribute("width");
-//            $height = $duplicate->getAttribute("height");
-            $exploded = explode("/", $url);  
-            $filename = array_pop($exploded);
+            url = duplicate.getAttribute("url");
+            filesize = duplicate.getAttribute("size");
+            filetype = duplicate.getAttribute("type");
+            String[] exploded = url.split("/");  
+            filename = exploded[exploded.length-1];
         } else {
             //upload new file
-            $json = WhatsMediaUploader::pushFile($node, $messageNode, $this->mediaFileInfo, $this->phoneNumber);
+            JSONObject json = WhatsMediaUploader.pushFile(node, messageNode, mediaFile, phoneNumber);
 
-            if (!$json) {
+            if (json == null) {
                 //failed upload
-                $this->eventManager()->fireMediaUploadFailed(
-                    $this->phoneNumber,
-                    $id,
-                    $node,
-                    $messageNode,
+                eventManager().fireMediaUploadFailed(
+                    phoneNumber,
+                    id,
+                    node,
+                    messageNode,
                     "Failed to push file to server"
                 );
                 return false;
             }
 
-            $url = $json->url;
-            $filesize = $json->size;
-//            $mimetype = $json->mimetype;
-//            $filehash = $json->filehash;
-            $filetype = $json->type;
-//            $width = $json->width;
-//            $height = $json->height;
-            $filename = $json->name;
+            url = json.getString("url");
+            filesize = json.getString("size");
+            filetype = json.getString("type");
+            filename = json.getString("name");
         }
 
-        $mediaAttribs = array();
-        $mediaAttribs["xmlns"] = "urn:xmpp:whatsapp:mms";
-        $mediaAttribs["type"] = $filetype;
-        $mediaAttribs["url"] = $url;
-        $mediaAttribs["file"] = $filename;
-        $mediaAttribs["size"] = $filesize;
+        Map<String,String> mediaAttribs = new HashMap<String, String>();
+        mediaAttribs.put("xmlns","urn:xmpp:whatsapp:mms");
+        mediaAttribs.put("type",filetype);
+        mediaAttribs.put("url",url);
+        mediaAttribs.put("file",filename);
+        mediaAttribs.put("size",filesize);
 
-        $filepath = $this->mediaQueue[$id]['filePath'];
-        $to = $this->mediaQueue[$id]['to'];
+        String filepath = (String) messageNode.get("filePath");
+        to = (String) messageNode.get("to");
 
-        switch ($filetype) {
-            case "image":
-                $icon = createIcon($filepath);
-                break;
-            case "video":
-                $icon = videoThumbnail();
-                break;
-            default:
-                $icon = '';
-                break;
+        byte[] icon = null;
+        if(filetype.equals("image")) {
+        	icon = createIcon(filepath);
+        }
+        if(filetype.equals("video")) {
+        	icon = videoThumbnail(filepath);
         }
 
-        $mediaNode = new ProtocolNode("media", $mediaAttribs, null, $icon);
-        if (is_array($to)) {
-            $this->sendBroadcast($to, $mediaNode);
-        } else {
-            $this->sendMessageNode($to, $mediaNode);
-        }
-        $this->eventManager()->fireMediaMessageSent(
-            $this->phoneNumber,
-            $to,
-            $id,
-            $filetype,
-            $url,
-            $filename,
-            $filesize,
-            $icon
+        ProtocolNode mediaNode = new ProtocolNode("media", mediaAttribs, null, icon);
+        /* 
+         * TODO support multiple recipients
+         */
+//        if (is_array($to)) {
+//            $this->sendBroadcast($to, $mediaNode);
+//        } else {
+//            $this->sendMessageNode($to, $mediaNode);
+//        }
+        sendMessageNode(to, mediaNode,null);
+        eventManager().fireMediaMessageSent(
+            phoneNumber,
+            to,
+            id,
+            filetype,
+            url,
+            filename,
+            filesize,
+            icon
         );
         return true;
-		 */
+	}
+
+	private byte[] videoThumbnail(String filepath) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	private byte[] createIcon(String filepath) {
+		// TODO Auto-generated method stub
+		return null;
 	}
 
 	private void sendPong(String msgid) throws IOException, WhatsAppException {
@@ -1671,7 +1792,7 @@ public class WhatsApi {
 			if(log.isDebugEnabled()) {
 				log.debug("processMessage: setting received id to "+node.getAttribute("id"));
 			}
-			serverReceivedId = node.getAttribute("id");
+			serverReceivedId.add(node.getAttribute("id"));
 			eventManager().fireMessageReceivedServer(
 					phoneNumber,
 					node.getAttribute("from"),
@@ -1926,8 +2047,10 @@ public class WhatsApi {
 	 * @throws InvalidMessageException 
 	 * @throws IncompleteMessageException 
 	 * @throws WhatsAppException 
+	 * @throws JSONException 
+	 * @throws NoSuchAlgorithmException 
 	 */
-	private String sendMessageNode(String to, ProtocolNode node, String id) throws IOException, IncompleteMessageException, InvalidMessageException, InvalidTokenException, WhatsAppException {
+	private String sendMessageNode(String to, ProtocolNode node, String id) throws IOException, IncompleteMessageException, InvalidMessageException, InvalidTokenException, WhatsAppException, JSONException, NoSuchAlgorithmException {
 		ProtocolNode serverNode = new ProtocolNode("server", null, null, null);
 		List<ProtocolNode> list = new LinkedList<ProtocolNode>();
 		list.add(serverNode);
@@ -1971,26 +2094,36 @@ public class WhatsApi {
 		return messageHash.get("id");
 	}
 
-	private void waitForServer(String id) throws IncompleteMessageException, InvalidMessageException, InvalidTokenException, IOException, WhatsAppException {
+	private void waitForServer(String id) throws IncompleteMessageException, InvalidMessageException, InvalidTokenException, IOException, WhatsAppException, JSONException, NoSuchAlgorithmException {
 		Date start = new Date();
 		Date now = start;
-		serverReceivedId = null;
 		do {
 			pollMessages();
 			now = new Date();
 		} while (!checkReceivedId(id) && (now.getTime() - start.getTime()) < 5000);
+		if(log.isDebugEnabled()) {
+			log.debug("waitForServer done waiting for "+id);
+		}
 	}
 
 	private boolean checkReceivedId(String id) {
 		if(log.isDebugEnabled()) {
 			log.debug("Checking received id ("+serverReceivedId+" against "+id);
 		}
-		if(serverReceivedId != null && serverReceivedId.equals(id))
+		if(serverReceivedId != null && serverReceivedId.contains(id)) {
+			if(log.isDebugEnabled()) {
+				log.debug("received id matched");
+			}
+			serverReceivedId.remove(id);
 			return true;
+		}
+		if(log.isDebugEnabled()) {
+			log.debug("received id did NOT match");
+		}
 		return false;
 	}
 
-	private void pollMessages() throws IncompleteMessageException, InvalidMessageException, InvalidTokenException, IOException, WhatsAppException {
+	private void pollMessages() throws IncompleteMessageException, InvalidMessageException, InvalidTokenException, IOException, WhatsAppException, JSONException, NoSuchAlgorithmException {
 		processInboundData(readData());
 	}
 

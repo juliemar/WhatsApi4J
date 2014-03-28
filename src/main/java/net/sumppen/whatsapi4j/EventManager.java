@@ -214,4 +214,17 @@ public class EventManager {
 		
 	}
 
+	public void fireMediaUploadFailed(String phoneNumber, String id,
+			ProtocolNode node, Map<String, Object> messageNode, String string) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	public void fireMediaMessageSent(String phoneNumber, String to, String id,
+			String filetype, String url, String filename, String filesize,
+			byte[] icon) {
+		// TODO Auto-generated method stub
+		
+	}
+
 }
