@@ -18,6 +18,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.security.spec.InvalidKeySpecException;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -32,8 +33,6 @@ import org.apache.commons.codec.binary.Base64;
 import org.apache.log4j.Logger;
 import org.json.JSONException;
 import org.json.JSONObject;
-
-import com.google.common.collect.Lists;
 
 /**
  * Java adaptation of PHP WhatsAPI by venomous0x
@@ -616,7 +615,12 @@ public class WhatsApi {
         String[] allowedExtensions = { "3gp", "caf", "wav", "mp3", "mp4", "wma", "ogg", "aif", "aac", "m4a" };
         int size = 10 * 1024 * 1024; // Easy way to set maximum file size for this media type.
         try {
-			return sendCheckAndSendMedia(file, size, to, "audio", Lists.newArrayList(allowedExtensions), storeURLmedia);
+        	// This list should be done better or at least cached!
+			List<String> list = new ArrayList<String>();
+			for(String ext : allowedExtensions) {
+				list.add(ext);
+			}
+			return sendCheckAndSendMedia(file, size, to, "audio", list, storeURLmedia);
 		} catch (Exception e) {
 			log.warn("Exception sending audio",e);
 			throw new WhatsAppException(e);
@@ -678,7 +682,9 @@ public class WhatsApi {
 		hash.put("id", id);
 		hash.put("to", WHATSAPP_SERVER);
 		hash.put("type", "set");
-		ProtocolNode node = new ProtocolNode("iq", hash, Lists.newArrayList(mediaNode), null);
+		ArrayList<ProtocolNode> list = new ArrayList<ProtocolNode>();
+		list.add(mediaNode);
+		ProtocolNode node = new ProtocolNode("iq", hash, list, null);
 
 		/*
 		 * TODO support for multiple recipients
