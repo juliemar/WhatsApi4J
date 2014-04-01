@@ -12,6 +12,7 @@ import java.io.PrintWriter;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLConnection;
+import java.nio.file.Files;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.Security;
@@ -36,46 +37,56 @@ public class WhatsMediaUploader {
 		String url = uploadResponseNode.getChild("media").getAttribute("url");
 		String filepath = mediaFile.getName();
 		String to = (String) messageContainer.get("to");
-		return getPostString(filepath, url, mediaFile, to, selfJID);
+//		String resume = uploadResponseNode.getChild("media").getAttribute("resume");
+		return getPostString(filepath, url, mediaFile, to, selfJID, null);
 	}
 
 	private static JSONObject getPostString(String filepath, String url,
-			File mediaFile, String to, String from) throws NoSuchAlgorithmException, IOException {
+			File mediaFile, String to, String from, String resume) throws NoSuchAlgorithmException, IOException {
+		int startFrom = 0;
+		if(resume != null && resume.length() > 0) {
+			startFrom = Integer.parseInt(resume);
+		}
+		
 		URL u = new URL(url);
+		
 		String host = u.getHost();
 
 		//filename to md5 digest
-		String cryptoname = md5(filepath) + "." + mediaFile.getName().substring(mediaFile.getName().lastIndexOf('.'));
+		String cryptoname = md5(filepath) + mediaFile.getName().substring(mediaFile.getName().lastIndexOf('.'));
 		String boundary = "zzXXzzYYzzXXzzQQ";
 		int contentlength = 0;
 
-		String hBAOS = "--" + boundary + "\r\n";
-		hBAOS += "Content-Disposition: form-data; name=\"to\"\r\n\r\n";
-		hBAOS += to + "\r\n";
-		hBAOS += "--" + boundary + "\r\n";
-		hBAOS += "Content-Disposition: form-data; name=\"from\"\r\n\r\n";
-		hBAOS += from + "\r\n";
-		hBAOS += "--" + boundary + "\r\n";
-		hBAOS += "Content-Disposition: form-data; name=\"file\"; filename=\"" + cryptoname + "\"\r\n";
-		hBAOS += "Content-Type: " + getMimeType(mediaFile) + "\r\n\r\n";
+		String headers = "--" + boundary + "\r\n";
+		headers += "Content-Disposition: form-data; name=\"to\"\r\n\r\n";
+		headers += to + "\r\n";
+		headers += "--" + boundary + "\r\n";
+		headers += "Content-Disposition: form-data; name=\"from\"\r\n\r\n";
+		headers += from + "\r\n";
+		headers += "--" + boundary + "\r\n";
+		headers += "Content-Disposition: form-data; name=\"file\"; filename=\"" + cryptoname + "\"\r\n";
+		headers += "Content-Type: " + getMimeType(mediaFile) + "\r\n\r\n";
 
 		String fBAOS = "\r\n--" + boundary + "--\r\n";
 
-		contentlength += hBAOS.length();
+		contentlength += headers.length();
 		contentlength += fBAOS.length();
-		contentlength += mediaFile.length();
+		contentlength += mediaFile.length()-startFrom;
 
-		String POST = "POST " + url + "\r\n";
-		POST += "Content-Type: multipart/form-data; boundary=" + boundary + "\r\n";
-		POST += "Host: " + host + "\r\n";
-		POST += "User-Agent: WhatsApp/2.3.53 S40Version/14.26 Device/Nokia302\r\n";
-		POST += "Content-Length: " + contentlength + "\r\n\r\n";
+		String post = "POST " + url + "\r\n";
+		post += "Content-Type: multipart/form-data; boundary=" + boundary + "\r\n";
+		post += "Host: " + host + "\r\n";
+		post += "User-Agent: WhatsApp/2.3.53 S40Version/14.26 Device/Nokia302\r\n";
+		if(startFrom > 0) {
+			post += "Content-Range: " + startFrom + "-" + mediaFile.length() + "\r\n";
+		}
+		post += "Content-Length: " + contentlength + "\r\n\r\n";
 
-		return sendData(host, POST, hBAOS, filepath, mediaFile, fBAOS);
+		return sendData(host, post, headers, filepath, mediaFile, fBAOS, startFrom);
 	}
 
 	private static JSONObject sendData(String host, String post, String head,
-			String filepath, File mediaFile, String tail) throws IOException {
+			String filepath, File mediaFile, String tail, int startFrom) throws IOException {
 		Security.addProvider(
 				new com.sun.net.ssl.internal.ssl.Provider());
 
@@ -85,12 +96,18 @@ public class WhatsMediaUploader {
 				(SSLSocket)factory.createSocket(host, 443);
 
 		OutputStream out = socket.getOutputStream();
+		log.debug("Writing post: "+post);
 		out.write(post.getBytes());
+		log.debug("Writing head: "+head);
 		out.write(head.getBytes());
 
 		//write file data
 		FileInputStream fileInputStream = new FileInputStream(mediaFile);
 
+		if(startFrom > 0) {
+			log.debug("Skipping to "+startFrom);
+			fileInputStream.skip(startFrom-1);
+		}
 		// Copy the contents of the file to the output stream
 		byte[] buffer = new byte[1024];
 		int count = 0;
@@ -116,7 +133,11 @@ public class WhatsMediaUploader {
 		out.close();
 		socket.close();
 
-		String[] parts = data.toString().split("\r\n\r\n");
+		return getJson(data.toString());
+	}
+
+	private static JSONObject getJson(String data) {
+		String[] parts = data.split("\r\n\r\n");
 
 		if(parts.length > 1) {
 			try {
@@ -125,22 +146,53 @@ public class WhatsMediaUploader {
 					return json;
 				}
 			} catch (JSONException e) {
-				log.warn("Invalid json returned from upload"+parts[1],e);
+				log.warn("Invalid json returned from upload: "+parts[1],e);
 			}
 		} else {
-			log.warn("No JSON body found in response"+data.toString());
+			log.info("No JSON body found in response"+data.toString());
+			if(data.contains("{")) {
+				String substring = data.substring(data.indexOf("{"));
+				try {
+					log.debug("Trying with substring: "+substring);
+					JSONObject json = new JSONObject(substring);
+					if(json != null) {
+						return json;
+					}
+				} catch (JSONException e) {
+					log.warn("Invalid json returned from upload: "+substring,e);
+				}
+			}
 		}
 		return null;
 	}
 
-	private static String getMimeType(File mediaFile) {
-		return URLConnection.guessContentTypeFromName(mediaFile.getName());
+	private static String getMimeType(File mediaFile) throws IOException {
+		/**
+		 * TODO This needs improvement!
+		 */
+		String contentType = URLConnection.guessContentTypeFromName(mediaFile.getName());
+//        if( contentType == null)
+//        {
+//            contentType = MimetypesFileTypeMap.getDefaultFileTypeMap().getContentType(filename);
+//        }
+        if(contentType == null) {
+			if(mediaFile.getName().endsWith(".mp3")) {
+				contentType = "audio/mpeg";
+			}
+		}
+		log.debug("Got content type "+contentType+" for: "+mediaFile.getPath());
+		return contentType;
 	}
 
 	private static String md5(String filepath) throws NoSuchAlgorithmException {
 		MessageDigest md5 = MessageDigest.getInstance("MD5");
-
-		return new String(md5.digest(filepath.getBytes()));
+		byte[] digest = md5.digest(filepath.getBytes());
+        StringBuilder sb = new StringBuilder();
+        for(int i=0; i< digest.length ;i++)
+        {
+            sb.append(Integer.toString((digest[i] & 0xff) + 0x100, 16).substring(1));
+        }
+        return sb.toString();
 	}
 
 }

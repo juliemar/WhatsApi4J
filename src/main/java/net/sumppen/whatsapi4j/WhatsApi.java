@@ -143,6 +143,7 @@ public class WhatsApi {
 	private final List<Country> countries;
 	private Map<String,Map<String,Object>> mediaQueue = new HashMap<String, Map<String,Object>>();
 	private File mediaFile;
+	private JSONObject mediaInfo;
 
 	public WhatsApi(String username, String identity, String nickname) throws NoSuchAlgorithmException, WhatsAppException {
 		writer = new BinTreeNodeWriter(dictionary);
@@ -596,8 +597,18 @@ public class WhatsApi {
 		throw new WhatsAppException("Not yet implemented");
 	}
 	
-	public void sendMessageAudio(String to, File filepath) throws WhatsAppException {
-		sendMessageAudio(to,filepath,false);
+    /**
+     * Send audio to the user/group.     *
+     *
+     * @param String to
+     *   The recipient.
+     * @param File file
+     *   The audio file.
+     * @return JSONObject json object with media information, or null if sending failed
+     * @throws WhatsAppException 
+     */
+	public JSONObject sendMessageAudio(String to, File filepath) throws WhatsAppException {
+		return sendMessageAudio(to,filepath,false);
 	}
 
     /**
@@ -608,10 +619,10 @@ public class WhatsApi {
      * @param File file
      *   The audio file.
      * @param  boolean storeURLmedia Keep copy of file
-     * @return boolean
+     * @return JSONObject json object with media information, or null if sending failed
      * @throws WhatsAppException 
      */
-	public boolean sendMessageAudio(String to, File file, boolean storeURLmedia) throws WhatsAppException {
+	public JSONObject sendMessageAudio(String to, File file, boolean storeURLmedia) throws WhatsAppException {
         String[] allowedExtensions = { "3gp", "caf", "wav", "mp3", "mp4", "wma", "ogg", "aif", "aac", "m4a" };
         int size = 10 * 1024 * 1024; // Easy way to set maximum file size for this media type.
         try {
@@ -636,7 +647,7 @@ public class WhatsApi {
      * @param String type media filetype. 'audio', 'video', 'image'
      * @param String[] allowedExtensions An array of allowable file types for the media file
      * @param boolean storeURLmedia Keep a copy of the media file
-     * @return boolean
+     * @return JSONObject json with media details, or null if failed
      * @throws IOException 
      * @throws InvalidTokenException 
      * @throws InvalidMessageException 
@@ -645,26 +656,27 @@ public class WhatsApi {
      * @throws JSONException 
      * @throws NoSuchAlgorithmException 
      */
-    private boolean sendCheckAndSendMedia(File file, int maxSize, String to,
+    private JSONObject sendCheckAndSendMedia(File file, int maxSize, String to,
 			String type, List<String> allowedExtensions, boolean storeURLmedia) throws WhatsAppException, IncompleteMessageException, InvalidMessageException, InvalidTokenException, IOException, JSONException, NoSuchAlgorithmException {
     	if(file.length() <= maxSize && file.isFile() && file.length() > 0) {
             String fileName = file.getName();
 			int lastIndexOf = fileName.lastIndexOf('.')+1;
 			String extension = fileName.substring(lastIndexOf);
 			if (allowedExtensions.contains(extension)) {
+				mediaInfo = null;
                 String b64hash = base64_encode(hash_file("sha256", file, true));
                 //request upload
                 sendRequestFileUpload(b64hash, type, file, to);
 //                processTempMediaFile(storeURLmedia);
-                return true;
+                return mediaInfo;
             } else {
                 //Not allowed file type.
 //                processTempMediaFile(storeURLmedia);
-                return false;
+                return new JSONObject("{\"error\":\"Invalid media type "+extension+"\"}");
             }
         } else {
             //Didn't get media file details.
-            return false;
+            return null;
         }
 	}
 
@@ -1455,6 +1467,7 @@ public class WhatsApi {
             filetype = duplicate.getAttribute("type");
             String[] exploded = url.split("/");  
             filename = exploded[exploded.length-1];
+            mediaInfo = createMediaInfo(duplicate);
         } else {
             //upload new file
             JSONObject json = WhatsMediaUploader.pushFile(node, messageNode, mediaFile, phoneNumber);
@@ -1471,6 +1484,10 @@ public class WhatsApi {
                 return false;
             }
 
+            if(log.isDebugEnabled()) {
+            	log.debug("Setting mediaInfo to: "+json.toString());
+            }
+            mediaInfo = json;
             url = json.getString("url");
             filesize = json.getString("size");
             filetype = json.getString("type");
@@ -1516,6 +1533,22 @@ public class WhatsApi {
             icon
         );
         return true;
+	}
+
+	private JSONObject createMediaInfo(ProtocolNode duplicate) {
+		JSONObject info = new JSONObject();
+		Map<String, String> attributes = duplicate.getAttributes();
+		for(String key : attributes.keySet()) {
+			try {
+				info.put(key, attributes.get(key));
+			} catch (JSONException e) {
+				log.warn("Failed to add "+key+" to media info: "+e.getMessage());
+			}
+		}
+		if(log.isDebugEnabled()) {
+			log.debug("Created media info (for duplicate): "+info.toString());
+		}
+		return info;
 	}
 
 	private byte[] videoThumbnail(String filepath) {
