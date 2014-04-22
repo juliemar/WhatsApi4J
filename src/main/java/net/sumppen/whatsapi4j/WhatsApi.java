@@ -748,8 +748,18 @@ public class WhatsApi {
 	}
 	
 	
-	public boolean sendMessageImage(String to, String filepath) throws WhatsAppException {
-		return sendMessageImage(to,filepath,false);
+    /**
+     * Send an image file to group/user
+     *
+     * @param  String to
+     *  Recipient number
+     * @param  String filepath
+     *   The url/uri to the image file.
+     * @return JSONObject 
+     * @throws WhatsAppException 
+     */
+	public JSONObject sendMessageImage(String to, File file) throws WhatsAppException {
+		return sendMessageImage(to,file,false);
 	}
 	
     /**
@@ -760,12 +770,24 @@ public class WhatsApi {
      * @param  String filepath
      *   The url/uri to the image file.
      * @param  boolean storeURLmedia Keep copy of file
-     * @return boolean
+     * @return JSONObject 
      * @throws WhatsAppException 
      */
-	public boolean sendMessageImage(String to, String filepath, boolean storeURLmedia) throws WhatsAppException {
-		//TODO implement this
-		throw new WhatsAppException("Not yet implemented");
+	public JSONObject sendMessageImage(String to, File file, boolean storeURLmedia) throws WhatsAppException {
+        
+        String[] allowedExtensions = { "jpg","jpeg","gif","png" };
+        int size = 5 * 1024 * 1024; // Easy way to set maximum file size for this media type.
+        try {
+        	// This list should be done better or at least cached!
+			List<String> list = new ArrayList<String>();
+			for(String ext : allowedExtensions) {
+				list.add(ext);
+			}
+			return sendCheckAndSendMedia(file, size, to, "image", list, storeURLmedia);
+		} catch (Exception e) {
+			log.warn("Exception sending audio",e);
+			throw new WhatsAppException(e);
+		}
 	}
 	
     /**
