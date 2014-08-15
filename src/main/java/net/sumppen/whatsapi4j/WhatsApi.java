@@ -138,7 +138,7 @@ public class WhatsApi {
 	private List<ProtocolNode> messageQueue = new LinkedList<ProtocolNode>();
 	private String lastId;
 	private List<ProtocolNode> outQueue = new LinkedList<ProtocolNode>();
-	private EventManager eventManager = new AbstractEventManager();
+	private EventManager eventManager = new LoggingEventManager();
 	private int messageCounter = 0;
 	private final List<Country> countries;
 	private Map<String,Map<String,Object>> mediaQueue = new HashMap<String, Map<String,Object>>();
