@@ -138,12 +138,13 @@ public class WhatsApi {
 	private List<ProtocolNode> messageQueue = new LinkedList<ProtocolNode>();
 	private String lastId;
 	private List<ProtocolNode> outQueue = new LinkedList<ProtocolNode>();
-	private final EventManager eventManager = new EventManager();
+	private EventManager eventManager = new AbstractEventManager();
 	private int messageCounter = 0;
 	private final List<Country> countries;
 	private Map<String,Map<String,Object>> mediaQueue = new HashMap<String, Map<String,Object>>();
 	private File mediaFile;
 	private JSONObject mediaInfo;
+	private MessageProcessor processor = null;
 
 	public WhatsApi(String username, String identity, String nickname) throws NoSuchAlgorithmException, WhatsAppException {
 		writer = new BinTreeNodeWriter(dictionary);
@@ -159,11 +160,11 @@ public class WhatsApi {
 		countries = readCountries();
 	}
 
-    /**
-     * Add message to the outgoing queue.
-     * 
-     * @param ProtocolNode
-     */
+	/**
+	 * Add message to the outgoing queue.
+	 * 
+	 * @param ProtocolNode
+	 */
 	public void addMsgOutQueue(ProtocolNode node) {
 		outQueue.add(node);
 	}
@@ -221,9 +222,9 @@ public class WhatsApi {
 		//TODO implement this
 	}
 
-    /**
-     * Connect (create a socket) to the WhatsApp network.
-     */
+	/**
+	 * Connect (create a socket) to the WhatsApp network.
+	 */
 	public boolean connect() throws UnknownHostException, IOException {
 		socket = new Socket(WHATSAPP_HOST, PORT);
 		if(socket.isConnected()) {
@@ -239,17 +240,17 @@ public class WhatsApi {
 	 * Disconnect from the WhatsApp network.
 	 */
 	public void disconnect() {
-        if (socket != null && socket.isConnected()) {
-        	try {
+		if (socket != null && socket.isConnected()) {
+			try {
 				socket.close();
 			} catch (IOException e) {
 				log.error("Exception while disconnecting",e);
 			}
-            eventManager().fireDisconnect(
-                phoneNumber,
-                socket
-            );
-        }	}
+			eventManager().fireDisconnect(
+					phoneNumber,
+					socket
+					);
+		}	}
 
 	/**
 	 * Drain the message queue for application processing.
@@ -258,11 +259,11 @@ public class WhatsApi {
 	 *   Return the message queue list.
 	 */
 	public List<ProtocolNode> getMessages() {
-        List<ProtocolNode> ret = messageQueue;
-        messageQueue = new LinkedList<ProtocolNode>();
+		List<ProtocolNode> ret = messageQueue;
+		messageQueue = new LinkedList<ProtocolNode>();
 
-        return ret;
-    }
+		return ret;
+	}
 
 	/**
 	 * Log into the Whatsapp server.
@@ -285,16 +286,16 @@ public class WhatsApi {
 		throw new WhatsAppException("Not yet implemented");
 
 	}
-	
-    /**
-     * Login to the Whatsapp server with your password
-     *
-     * If you already know your password you can log into the Whatsapp server
-     * using this method.
-     *
-     * @param  String  password         Your whatsapp password. You must already know this!
-     * @param  bool $profileSubscribe Add a feature
-     */
+
+	/**
+	 * Login to the Whatsapp server with your password
+	 *
+	 * If you already know your password you can log into the Whatsapp server
+	 * using this method.
+	 *
+	 * @param  String  password         Your whatsapp password. You must already know this!
+	 * @param  bool $profileSubscribe Add a feature
+	 */
 	public void loginWithPassword(String password) throws WhatsAppException {
 		this.password = password;
 		try {
@@ -339,94 +340,94 @@ public class WhatsApi {
 		//TODO implement this
 		throw new WhatsAppException("Not yet implemented");
 	}
-	
+
 	public void sendBroadcastImage(List<String> targets, String path) throws WhatsAppException {
 		sendBroadcastImage(targets,path,false);
 	}
-	
-    /**
-     * Send a Broadcast Message with an image.
-     *
-     * The recipient MUST have your number (synced) and in their contact list
-     * otherwise the message will not deliver to that person.
-     *
-     * Approx 20 (unverified) is the maximum number of targets
-     *
+
+	/**
+	 * Send a Broadcast Message with an image.
+	 *
+	 * The recipient MUST have your number (synced) and in their contact list
+	 * otherwise the message will not deliver to that person.
+	 *
+	 * Approx 20 (unverified) is the maximum number of targets
+	 *
 	 * @param  List<String>  targets       An list of numbers to send to.
 	 * @param  String  path          URL or local path to the audio file to send
 	 * @param  boolean storeURLmedia Keep a copy of the audio file on your server
-     * @throws WhatsAppException 
-     */
+	 * @throws WhatsAppException 
+	 */
 	public void sendBroadcastImage(List<String> targets, String path, boolean storeURLmedia) throws WhatsAppException {
 		//TODO implement this
 		throw new WhatsAppException("Not yet implemented");
 	}
-	
-    /**
-     * Send a Broadcast Message with location data.
-     *
-     * The recipient MUST have your number (synced) and in their contact list
-     * otherwise the message will not deliver to that person.
-     *
-     * If no name is supplied , receiver will see large sized google map
-     * thumbnail of entered Lat/Long but NO name/url for location.
-     *
-     * With name supplied, a combined map thumbnail/name box is displayed
 
-     * Approx 20 (unverified) is the maximum number of targets
-     *
-     * @param  List<String>  targets       An list of numbers to send to.
-     * @param  float lng    The longitude of the location eg 54.31652
-     * @param  float lat     The latitude if the location eg -6.833496
-     * @param  String name    (Optional) A name to describe the location
-     * @param  String url     (Optional) A URL to link location to web resource
-     * @throws WhatsAppException 
-     */
+	/**
+	 * Send a Broadcast Message with location data.
+	 *
+	 * The recipient MUST have your number (synced) and in their contact list
+	 * otherwise the message will not deliver to that person.
+	 *
+	 * If no name is supplied , receiver will see large sized google map
+	 * thumbnail of entered Lat/Long but NO name/url for location.
+	 *
+	 * With name supplied, a combined map thumbnail/name box is displayed
+
+	 * Approx 20 (unverified) is the maximum number of targets
+	 *
+	 * @param  List<String>  targets       An list of numbers to send to.
+	 * @param  float lng    The longitude of the location eg 54.31652
+	 * @param  float lat     The latitude if the location eg -6.833496
+	 * @param  String name    (Optional) A name to describe the location
+	 * @param  String url     (Optional) A URL to link location to web resource
+	 * @throws WhatsAppException 
+	 */
 
 	public void sendBroadcastLocation(List<String> targets, float lng, float lat, String name, String url) throws WhatsAppException {
 		//TODO implement this
 		throw new WhatsAppException("Not yet implemented");
 	}
-	
-    /**
-     * Send a Broadcast Message
-     *
-     * The recipient MUST have your number (synced) and in their contact list
-     * otherwise the message will not deliver to that person.
-     *
-     * Approx 20 (unverified) is the maximum number of targets
-     *
-     * @param  List<String>  targets       An list of numbers to send to.
-     * @param  String message Your message
-     * @throws WhatsAppException 
-     */
+
+	/**
+	 * Send a Broadcast Message
+	 *
+	 * The recipient MUST have your number (synced) and in their contact list
+	 * otherwise the message will not deliver to that person.
+	 *
+	 * Approx 20 (unverified) is the maximum number of targets
+	 *
+	 * @param  List<String>  targets       An list of numbers to send to.
+	 * @param  String message Your message
+	 * @throws WhatsAppException 
+	 */
 	public void sendBroadcastMessage(List<String> targets, String message) throws WhatsAppException {
 		//TODO implement this
 		throw new WhatsAppException("Not yet implemented");
 	}
-	
+
 	public void sendBroadcastVideo(List<String> targets, String path) throws WhatsAppException {
 		sendBroadcastVideo(targets,path,false);
 	}
 
-    /**
-     * Send a Broadcast Message with a video.
-     *
-     * The recipient MUST have your number (synced) and in their contact list
-     * otherwise the message will not deliver to that person.
-     *
-     * Approx 20 (unverified) is the maximum number of targets
-     *
-     * @param  List<String>  targets       An list of numbers to send to.
-     * @param  String  path          URL or local path to the video file to send
-     * @param  boolean storeURLmedia Keep a copy of the audio file on your server
-     * @throws WhatsAppException 
-     */
+	/**
+	 * Send a Broadcast Message with a video.
+	 *
+	 * The recipient MUST have your number (synced) and in their contact list
+	 * otherwise the message will not deliver to that person.
+	 *
+	 * Approx 20 (unverified) is the maximum number of targets
+	 *
+	 * @param  List<String>  targets       An list of numbers to send to.
+	 * @param  String  path          URL or local path to the video file to send
+	 * @param  boolean storeURLmedia Keep a copy of the audio file on your server
+	 * @throws WhatsAppException 
+	 */
 	public void sendBroadcastVideo(List<String> targets, String path, boolean storeURLmedia) throws WhatsAppException {
 		//TODO implement this
 		throw new WhatsAppException("Not yet implemented");
 	}
-	
+
 	public void sendClientConfig() throws WhatsAppException {
 		//TODO implement this
 		throw new WhatsAppException("Not yet implemented");
@@ -435,198 +436,198 @@ public class WhatsApi {
 		//TODO implement this
 		throw new WhatsAppException("Not yet implemented");
 	}
-	
-    /**
-     * Send a request to return a list of groups user is currently participating
-     * in.
-     *
-     * To capture this list you will need to bind the "onGetGroups" event.
-     * @throws WhatsAppException 
-     */
+
+	/**
+	 * Send a request to return a list of groups user is currently participating
+	 * in.
+	 *
+	 * To capture this list you will need to bind the "onGetGroups" event.
+	 * @throws WhatsAppException 
+	 */
 	public void sendGetGroups() throws WhatsAppException {
 		//TODO implement this
 		throw new WhatsAppException("Not yet implemented");
 	}
-	
-    /**
-     * Send a request to get information about a specific group
-     *
-     * @param  String gjid The specific group id
-     * @throws WhatsAppException 
-     */
+
+	/**
+	 * Send a request to get information about a specific group
+	 *
+	 * @param  String gjid The specific group id
+	 * @throws WhatsAppException 
+	 */
 	public void sendGetGroupsInfo(String gjid) throws WhatsAppException {
 		//TODO implement this
 		throw new WhatsAppException("Not yet implemented");
 	}
-	
-    /**
-     * Send a request to return a list of groups user has started
-     * in.
-     *
-     * To capture this list you will need to bind the "onGetGroups" event.
-     * @throws WhatsAppException 
-     */
+
+	/**
+	 * Send a request to return a list of groups user has started
+	 * in.
+	 *
+	 * To capture this list you will need to bind the "onGetGroups" event.
+	 * @throws WhatsAppException 
+	 */
 	public void sendGetGroupsOwning() throws WhatsAppException {
 		//TODO implement this
 		throw new WhatsAppException("Not yet implemented");
 	}
-	
-    /**
-     * Send a request to return a list of people participating in a specific
-     * group.
-     *
-     * @param  String gjid The specific group id
-     * @throws WhatsAppException 
-     */
+
+	/**
+	 * Send a request to return a list of people participating in a specific
+	 * group.
+	 *
+	 * @param  String gjid The specific group id
+	 * @throws WhatsAppException 
+	 */
 	public void sendGetGroupsParticipants(String gjid) throws WhatsAppException {
 		//TODO implement this
 		throw new WhatsAppException("Not yet implemented");
 	}
-	
-    /**
-     * Send a request to get a list of people you have currently blocked
-     * @throws WhatsAppException 
-     */
+
+	/**
+	 * Send a request to get a list of people you have currently blocked
+	 * @throws WhatsAppException 
+	 */
 	public void sendGetPrivacyBlockedList() throws WhatsAppException {
 		//TODO implement this
 		throw new WhatsAppException("Not yet implemented");
 	}
-	
+
 	public void sendGetProfilePicture(String number) throws WhatsAppException {
 		sendGetProfilePicture(number,false);
 	}
-	
-    /**
-     * Get profile picture of specified user
-     *
-     * @param String number
-     *  Number or JID of user
-     *
-     * @param boolean large
-     *  Request large picture
-     * @throws WhatsAppException 
-     */
+
+	/**
+	 * Get profile picture of specified user
+	 *
+	 * @param String number
+	 *  Number or JID of user
+	 *
+	 * @param boolean large
+	 *  Request large picture
+	 * @throws WhatsAppException 
+	 */
 	public void sendGetProfilePicture(String number, boolean large) throws WhatsAppException {
 		//TODO implement this
 		throw new WhatsAppException("Not yet implemented");
 	}
-	
-    /**
-     * Request to retrieve the last online time of specific user.
-     *
-     * @param String to
-     *  Number or JID of user
-     */
+
+	/**
+	 * Request to retrieve the last online time of specific user.
+	 *
+	 * @param String to
+	 *  Number or JID of user
+	 */
 	public void sendGetRequestLastSeen(String to) {
 		//TODO implement this
 	}
-	
-    /**
-     * Send a request to get the current server properties
-     * @throws WhatsAppException 
-     */
+
+	/**
+	 * Send a request to get the current server properties
+	 * @throws WhatsAppException 
+	 */
 	public void sendGetServerProperties() throws WhatsAppException {
 		//TODO implement this
 		throw new WhatsAppException("Not yet implemented");
 	}
-	
-    /**
-     * Create a group chat.
-     *
-     * @param String subject
-     *   The group Subject
-     * @param List<String> participants
-     *   An array with the participants numbers.
-     *
-     * @return String
-     *   The group ID.
-     * @throws WhatsAppException 
-     */
+
+	/**
+	 * Create a group chat.
+	 *
+	 * @param String subject
+	 *   The group Subject
+	 * @param List<String> participants
+	 *   An array with the participants numbers.
+	 *
+	 * @return String
+	 *   The group ID.
+	 * @throws WhatsAppException 
+	 */
 	public String sendGroupsChatCreate(String subject, List<String> participants) throws WhatsAppException {
 		//TODO implement this
 		throw new WhatsAppException("Not yet implemented");
 	}
-	
-    /**
-     * End or delete a group chat
-     *
-     * @param  String gjid The group ID
-     * @throws WhatsAppException 
-     */
+
+	/**
+	 * End or delete a group chat
+	 *
+	 * @param  String gjid The group ID
+	 * @throws WhatsAppException 
+	 */
 	public void sendGroupsChatEnd(String gjid) throws WhatsAppException {
 		//TODO implement this
 		throw new WhatsAppException("Not yet implemented");
 	}
-	
-    /**
-     * Leave a group chat
-     *
-     * @param  List<String> gjids A list of group IDs
-     * @throws WhatsAppException 
-     */
+
+	/**
+	 * Leave a group chat
+	 *
+	 * @param  List<String> gjids A list of group IDs
+	 * @throws WhatsAppException 
+	 */
 	public void sendGroupsLeave(List<String> gjids) throws WhatsAppException {
 		//TODO implement this
 		throw new WhatsAppException("Not yet implemented");
 	}
-	
-    /**
-     * Add participant(s) to a group.
-     *
-     * @param String groupId
-     *   The group ID.
-     * @param List<String> participants
-     *   An array with the participants numbers to add
-     * @throws WhatsAppException 
-     */
+
+	/**
+	 * Add participant(s) to a group.
+	 *
+	 * @param String groupId
+	 *   The group ID.
+	 * @param List<String> participants
+	 *   An array with the participants numbers to add
+	 * @throws WhatsAppException 
+	 */
 	public void sendGroupsParticipantsAdd(String groupId, List<String> participants) throws WhatsAppException {
 		//TODO implement this
 		throw new WhatsAppException("Not yet implemented");
 	}
-	
-    /**
-     * Remove participant(s) from a group.
-     *
-     * @param String groupId
-     *   The group ID.
-     * @param List<String> participants
-     *   An array with the participants numbers to remove
-     * @throws WhatsAppException 
-     */
+
+	/**
+	 * Remove participant(s) from a group.
+	 *
+	 * @param String groupId
+	 *   The group ID.
+	 * @param List<String> participants
+	 *   An array with the participants numbers to remove
+	 * @throws WhatsAppException 
+	 */
 	public void sendGroupsParticipantsRemove(String groupId, List<String> participants) throws WhatsAppException {
 		//TODO implement this
 		throw new WhatsAppException("Not yet implemented");
 	}
-	
-    /**
-     * Send audio to the user/group.     *
-     *
-     * @param String to
-     *   The recipient.
-     * @param File file
-     *   The audio file.
-     * @return JSONObject json object with media information, or null if sending failed
-     * @throws WhatsAppException 
-     */
+
+	/**
+	 * Send audio to the user/group.     *
+	 *
+	 * @param String to
+	 *   The recipient.
+	 * @param File file
+	 *   The audio file.
+	 * @return JSONObject json object with media information, or null if sending failed
+	 * @throws WhatsAppException 
+	 */
 	public JSONObject sendMessageAudio(String to, File filepath) throws WhatsAppException {
 		return sendMessageAudio(to,filepath,false);
 	}
 
-    /**
-     * Send audio to the user/group.     *
-     *
-     * @param String to
-     *   The recipient.
-     * @param File file
-     *   The audio file.
-     * @param  boolean storeURLmedia Keep copy of file
-     * @return JSONObject json object with media information, or null if sending failed
-     * @throws WhatsAppException 
-     */
+	/**
+	 * Send audio to the user/group.     *
+	 *
+	 * @param String to
+	 *   The recipient.
+	 * @param File file
+	 *   The audio file.
+	 * @param  boolean storeURLmedia Keep copy of file
+	 * @return JSONObject json object with media information, or null if sending failed
+	 * @throws WhatsAppException 
+	 */
 	public JSONObject sendMessageAudio(String to, File file, boolean storeURLmedia) throws WhatsAppException {
-        String[] allowedExtensions = { "3gp", "caf", "wav", "mp3", "mp4", "wma", "ogg", "aif", "aac", "m4a" };
-        int size = 10 * 1024 * 1024; // Easy way to set maximum file size for this media type.
-        try {
-        	// This list should be done better or at least cached!
+		String[] allowedExtensions = { "3gp", "caf", "wav", "mp3", "mp4", "wma", "ogg", "aif", "aac", "m4a" };
+		int size = 10 * 1024 * 1024; // Easy way to set maximum file size for this media type.
+		try {
+			// This list should be done better or at least cached!
 			List<String> list = new ArrayList<String>();
 			for(String ext : allowedExtensions) {
 				list.add(ext);
@@ -637,47 +638,47 @@ public class WhatsApi {
 			throw new WhatsAppException(e);
 		}
 	}
-	
-    /**
-     * Checks that the media file to send is of allowable filetype and within size limits.
-     *
-     * @param File file The media file
-     * @param int maxSize Maximim filesize allowed for media type
-     * @param String to Recipient ID/number
-     * @param String type media filetype. 'audio', 'video', 'image'
-     * @param String[] allowedExtensions An array of allowable file types for the media file
-     * @param boolean storeURLmedia Keep a copy of the media file
-     * @return JSONObject json with media details, or null if failed
-     * @throws IOException 
-     * @throws InvalidTokenException 
-     * @throws InvalidMessageException 
-     * @throws IncompleteMessageException 
-     * @throws WhatsAppException 
-     * @throws JSONException 
-     * @throws NoSuchAlgorithmException 
-     */
-    private JSONObject sendCheckAndSendMedia(File file, int maxSize, String to,
+
+	/**
+	 * Checks that the media file to send is of allowable filetype and within size limits.
+	 *
+	 * @param File file The media file
+	 * @param int maxSize Maximim filesize allowed for media type
+	 * @param String to Recipient ID/number
+	 * @param String type media filetype. 'audio', 'video', 'image'
+	 * @param String[] allowedExtensions An array of allowable file types for the media file
+	 * @param boolean storeURLmedia Keep a copy of the media file
+	 * @return JSONObject json with media details, or null if failed
+	 * @throws IOException 
+	 * @throws InvalidTokenException 
+	 * @throws InvalidMessageException 
+	 * @throws IncompleteMessageException 
+	 * @throws WhatsAppException 
+	 * @throws JSONException 
+	 * @throws NoSuchAlgorithmException 
+	 */
+	private JSONObject sendCheckAndSendMedia(File file, int maxSize, String to,
 			String type, List<String> allowedExtensions, boolean storeURLmedia) throws WhatsAppException, IncompleteMessageException, InvalidMessageException, InvalidTokenException, IOException, JSONException, NoSuchAlgorithmException {
-    	if(file.length() <= maxSize && file.isFile() && file.length() > 0) {
-            String fileName = file.getName();
+		if(file.length() <= maxSize && file.isFile() && file.length() > 0) {
+			String fileName = file.getName();
 			int lastIndexOf = fileName.lastIndexOf('.')+1;
 			String extension = fileName.substring(lastIndexOf);
 			if (allowedExtensions.contains(extension)) {
 				mediaInfo = null;
-                String b64hash = base64_encode(hash_file("sha256", file, true));
-                //request upload
-                sendRequestFileUpload(b64hash, type, file, to);
-//                processTempMediaFile(storeURLmedia);
-                return mediaInfo;
-            } else {
-                //Not allowed file type.
-//                processTempMediaFile(storeURLmedia);
-                return new JSONObject("{\"error\":\"Invalid media type "+extension+"\"}");
-            }
-        } else {
-            //Didn't get media file details.
-            return null;
-        }
+				String b64hash = base64_encode(hash_file("sha256", file, true));
+				//request upload
+				sendRequestFileUpload(b64hash, type, file, to);
+				//                processTempMediaFile(storeURLmedia);
+				return mediaInfo;
+			} else {
+				//Not allowed file type.
+				//                processTempMediaFile(storeURLmedia);
+				return new JSONObject("{\"error\":\"Invalid media type "+extension+"\"}");
+			}
+		} else {
+			//Didn't get media file details.
+			return null;
+		}
 	}
 
 	private void sendRequestFileUpload(String b64hash, String type, File file,
@@ -701,9 +702,9 @@ public class WhatsApi {
 		/*
 		 * TODO support for multiple recipients
 		 *  if (!is_array($to)) {
-         *    $to = $this->getJID($to);
-         *	}
-         *
+		 *    $to = $this->getJID($to);
+		 *	}
+		 *
 		 */
 		Map<String,Object> map = new HashMap<String, Object>();
 		map.put("messageNode", node);
@@ -720,269 +721,371 @@ public class WhatsApi {
 	}
 
 	private byte[] hash_file(String string, File file, boolean b) throws NoSuchAlgorithmException, IOException {
-        MessageDigest md;
+		MessageDigest md;
 
-        md = MessageDigest.getInstance("SHA-256");
-        FileInputStream fis = new FileInputStream(file);
-        
-        byte[] dataBytes = new byte[1024];
- 
-        int nread = 0; 
-        while ((nread = fis.read(dataBytes)) != -1) {
-          md.update(dataBytes, 0, nread);
-        };
-        byte[] mdbytes = md.digest();        
-        return mdbytes;
+		md = MessageDigest.getInstance("SHA-256");
+		FileInputStream fis = new FileInputStream(file);
+
+		byte[] dataBytes = new byte[1024];
+
+		int nread = 0; 
+		while ((nread = fis.read(dataBytes)) != -1) {
+			md.update(dataBytes, 0, nread);
+		};
+		byte[] mdbytes = md.digest();        
+		return mdbytes;
 	}
 
 	/**
-     * Send the composing message status. When typing a message.
-     *
-     * @param String to
-     *   The recipient to send status to.
-     * @throws WhatsAppException 
-     */
+	 * Send the composing message status. When typing a message.
+	 *
+	 * @param String to
+	 *   The recipient to send status to.
+	 * @throws WhatsAppException 
+	 */
 	public void sendMessageComposing(String to) throws WhatsAppException {
 		//TODO implement this
 		throw new WhatsAppException("Not yet implemented");
 	}
-	
-	
-    /**
-     * Send an image file to group/user
-     *
-     * @param  String to
-     *  Recipient number
-     * @param  String filepath
-     *   The url/uri to the image file.
-     * @return JSONObject 
-     * @throws WhatsAppException 
-     */
-	public JSONObject sendMessageImage(String to, File file) throws WhatsAppException {
-		return sendMessageImage(to,file,false);
+
+
+	/**
+	 * Send an image file to group/user
+	 *
+	 * @param  String to
+	 *  Recipient number
+	 * @param  String filepath
+	 *   The url/uri to the image file.
+	 * @return JSONObject 
+	 * @throws WhatsAppException 
+	 */
+	public JSONObject sendMessageImage(String to, File image, File preview) throws WhatsAppException {
+		return sendMessageImage(to,image, preview,false);
 	}
-	
-    /**
-     * Send an image file to group/user
-     *
-     * @param  String to
-     *  Recipient number
-     * @param  String filepath
-     *   The url/uri to the image file.
-     * @param  boolean storeURLmedia Keep copy of file
-     * @return JSONObject 
-     * @throws WhatsAppException 
-     */
-	public JSONObject sendMessageImage(String to, File file, boolean storeURLmedia) throws WhatsAppException {
-        
-        String[] allowedExtensions = { "jpg","jpeg","gif","png" };
-        int size = 5 * 1024 * 1024; // Easy way to set maximum file size for this media type.
-        try {
-        	// This list should be done better or at least cached!
+
+	/**
+	 * Send an image file to group/user
+	 *
+	 * @param  String to
+	 *  Recipient number
+	 * @param  String filepath
+	 *   The url/uri to the image file.
+	 * @param  boolean storeURLmedia Keep copy of file
+	 * @return JSONObject 
+	 * @throws WhatsAppException 
+	 */
+	public JSONObject sendMessageImage(String to, File image, File preview, boolean storeURLmedia) throws WhatsAppException {
+
+		String[] allowedExtensions = { "jpg","jpeg","gif","png" };
+		int size = 5 * 1024 * 1024; // Easy way to set maximum file size for this media type.
+		try {
+			// This list should be done better or at least cached!
 			List<String> list = new ArrayList<String>();
 			for(String ext : allowedExtensions) {
 				list.add(ext);
 			}
-			return sendCheckAndSendMedia(file, size, to, "image", list, storeURLmedia);
+			return sendCheckAndSendMedia(image, size, to, "image", list, storeURLmedia);
 		} catch (Exception e) {
 			log.warn("Exception sending audio",e);
 			throw new WhatsAppException(e);
 		}
 	}
-	
-    /**
-     * Send a location to the user/group.
-     *
-     * If no name is supplied , receiver will see large sized google map
-     * thumbnail of entered Lat/Long but NO name/url for location.
-     *
-     * With name supplied, a combined map thumbnail/name box is displayed
-     *
-     * @param List<String> to The recipient(s) to send to.
-     * @param  float lng    The longitude of the location eg 54.31652
-     * @param  float lat     The latitude if the location eg -6.833496
-     * @param String name (Optional)  The custom name you would like to give this location.
-     * @param String url (Optional) A URL to attach to the location.
-     * @throws WhatsAppException 
-     */
+
+	/**
+	 * Send a location to the user/group.
+	 *
+	 * If no name is supplied , receiver will see large sized google map
+	 * thumbnail of entered Lat/Long but NO name/url for location.
+	 *
+	 * With name supplied, a combined map thumbnail/name box is displayed
+	 *
+	 * @param List<String> to The recipient(s) to send to.
+	 * @param  float lng    The longitude of the location eg 54.31652
+	 * @param  float lat     The latitude if the location eg -6.833496
+	 * @param String name (Optional)  The custom name you would like to give this location.
+	 * @param String url (Optional) A URL to attach to the location.
+	 * @throws WhatsAppException 
+	 */
 	public void sendMessageLocation(List<String> to, float lng, float lat, String name, String url) throws WhatsAppException {
 		//TODO implement this
 		throw new WhatsAppException("Not yet implemented");
 	}
-	  
+
 	/**
-     * Send the 'paused composing message' status.
-     *
-     * @param String to
-     *   The recipient number or ID.
+	 * Send the 'paused composing message' status.
+	 *
+	 * @param String to
+	 *   The recipient number or ID.
 	 * @throws WhatsAppException 
-     */
+	 */
 	public void sendMessagePaused(String to) throws WhatsAppException {
 		//TODO implement this
 		throw new WhatsAppException("Not yet implemented");
 	}
-	
-    /**
-     * Send a video to the user/group without keeping a copy
-     *
-     * @param  String to
-     *   The recipient to send.
-     * @param String filepath
-     *   The url/uri to the MP4/MOV video.
-     * @return boolean
-     * @throws WhatsAppException 
-     */
+
+	/**
+	 * Send a video to the user/group without keeping a copy
+	 *
+	 * @param  String to
+	 *   The recipient to send.
+	 * @param String filepath
+	 *   The url/uri to the MP4/MOV video.
+	 * @return boolean
+	 * @throws WhatsAppException 
+	 */
 	public boolean sendMessageVideo(String to, String filepath) throws WhatsAppException {
 		return sendMessageVideo(to, filepath,false);
 	}
-	
-    /**
-     * Send a video to the user/group.
-     *
-     * @param  String to
-     *   The recipient to send.
-     * @param String filepath
-     *   The url/uri to the MP4/MOV video.
-     * @param  boolean $storeURLmedia Keep a copy of media file.
-     * @return boolean
-     * @throws WhatsAppException 
-     */
+
+	/**
+	 * Send a video to the user/group.
+	 *
+	 * @param  String to
+	 *   The recipient to send.
+	 * @param String filepath
+	 *   The url/uri to the MP4/MOV video.
+	 * @param  boolean $storeURLmedia Keep a copy of media file.
+	 * @return boolean
+	 * @throws WhatsAppException 
+	 */
 	public boolean sendMessageVideo(String to, String filepath, boolean storeURLmedia) throws WhatsAppException {
 		//TODO implement this
 		throw new WhatsAppException("Not yet implemented");
 	}
-	
-    /**
-     * Send the offline status. User will show up as "Offline".
-     * @throws WhatsAppException 
-     */
+
+	/**
+	 * Send the offline status. User will show up as "Offline".
+	 * @throws WhatsAppException 
+	 */
 	public void sendOfflineStatus() throws WhatsAppException {
 		HashMap<String, String> map = new HashMap<String,String>();
 		map.put("type", "unavailable");
 		ProtocolNode messageNode = new ProtocolNode("presence", map, null, null);
 		sendNode(messageNode);
 	}
-	
-    /**
-     * Send available presence status.
-     */
+
+	/**
+	 * Send available presence status.
+	 */
 	public void sendPresence() throws IOException, WhatsAppException {
 		sendPresence("available");
 	}
-	
-    /**
-     * Send presence subscription, automatically receive presence updates as long as the socket is open.
-     *
-     * @param String to
-     *   Phone number.
-     * @throws WhatsAppException 
-     */
+
+	/**
+	 * Send presence subscription, automatically receive presence updates as long as the socket is open.
+	 *
+	 * @param String to
+	 *   Phone number.
+	 * @throws WhatsAppException 
+	 */
 	public void sendPresenceSubscription(String to) throws WhatsAppException {
 		//TODO implement this
 		throw new WhatsAppException("Not yet implemented");
 	}
-	
-    /**
-     * Set the picture for the group
-     *
-     * @param  String gjid The groupID
-     * @param  String path The URL/URI of the image to use
-     * @throws WhatsAppException 
-     */
+
+	/**
+	 * Set the picture for the group
+	 *
+	 * @param  String gjid The groupID
+	 * @param  String path The URL/URI of the image to use
+	 * @throws WhatsAppException 
+	 */
 	public void sendSetGroupPicture(String gjid, String path) throws WhatsAppException {
 		//TODO implement this
 		throw new WhatsAppException("Not yet implemented");
 	}
-	
-    /**
-     * Set the list of numbers you wish to block receiving from.
-     *
-     * @param List<String> blockedJids Array of numbers to block messages from.
-     * @throws WhatsAppException 
-     */
+
+	/**
+	 * Set the list of numbers you wish to block receiving from.
+	 *
+	 * @param List<String> blockedJids Array of numbers to block messages from.
+	 * @throws WhatsAppException 
+	 */
 	public void sendSetPrivacyBlockedList(List<String> blockedJids) throws WhatsAppException {
 		//TODO implement this
 		throw new WhatsAppException("Not yet implemented");
 	}
-	
-    /**
-     * Set your profile picture
-     *
-     * @param  String path URL/URI of image
-     * @throws WhatsAppException 
-     */
-	public void sendSetProfilePicture(String path) throws WhatsAppException {
-		//TODO implement this
-		throw new WhatsAppException("Not yet implemented");
+
+	/**
+	 * Set your profile picture. Thumbnail should be 96px size version of image
+	 *
+	 * @param  Image file
+	 * @param  Thumbnail file
+	 * @throws WhatsAppException 
+	 */
+	public void sendSetProfilePicture(File image, File thumbnail) throws WhatsAppException {
+		sendSetPicture(phoneNumber,image, thumbnail);
 	}
-	
-    /**
-     * Set the recovery token for your account to allow you to
-     * retrieve your password at a later stage.
-     * @param  String token A user generated token.
-     * @throws WhatsAppException 
-     */
+
+	/**
+	 * Set your profile picture
+	 *
+	 * @param String jid
+	 * @param File image
+	 * @param File thumbnail
+	 *  URL or localpath to image file
+	 * @throws WhatsAppException 
+	 */
+	private void sendSetPicture(String jid, File image, File thumbnail) throws WhatsAppException {
+		preprocessProfilePicture(image);
+
+		if (image.exists() && image.canRead() && image.isFile()) {
+			byte[] data;
+			try {
+				data = readFile(image);
+			} catch (IOException e) {
+				throw new WhatsAppException("Failed to read image file", e);
+			}
+			if (data != null && data.length > 0) {
+				//this is where the fun starts
+				ProtocolNode picture = new ProtocolNode("picture", null, null, data);
+
+				byte[] icon;
+				if(thumbnail != null && thumbnail.isFile() && thumbnail.canRead()) {
+					try {
+						icon = readFile(thumbnail);
+					} catch (IOException e1) {
+						throw new WhatsAppException("Failed to read thumbnail image",e1);
+					}
+				} else {
+					icon = createIconGD(image, 96, true);
+				}
+				HashMap<String,String> typeMap = new HashMap<String, String>();
+				typeMap.put("type", "preview");
+				ProtocolNode thumb = new ProtocolNode("picture", typeMap, null, icon);
+
+				HashMap<String, String> hash = new HashMap<String, String>();
+				String nodeID = createMsgId("setphoto");
+				hash.put("id",nodeID);
+				hash.put("to",getJID(jid));
+				hash.put("type","set");
+				hash.put("xmlns","w:profile:picture");
+				List<ProtocolNode> arr = new LinkedList<ProtocolNode>();
+				arr.add(picture);
+				//				arr.add(thumb);
+				ProtocolNode node = new ProtocolNode("iq", hash, arr, null);
+
+				sendNode(node);
+				try {
+					waitForServer(nodeID);
+				} catch (Exception e) {
+					throw new WhatsAppException("Waiting for reply failed", e);
+				}
+			}
+		}	}
+
+	private byte[] createIconGD(File filepath, int i, boolean b) throws WhatsAppException {
+		throw new WhatsAppException("Automatic creation of thumbnail not yet implemented");
+		//		list($width, $height) = getimagesize($file);
+		//		if ($width > $height) {
+		//			//landscape
+		//			$nheight = ($height / $width) * $size;
+		//			$nwidth = $size;
+		//		} else {
+		//			$nwidth = ($width / $height) * $size;
+		//			$nheight = $size;
+		//		}
+		//		$image_p = imagecreatetruecolor($nwidth, $nheight);
+		//		$image = imagecreatefromjpeg($file);
+		//		imagecopyresampled($image_p, $image, 0, 0, 0, 0, $nwidth, $nheight, $width, $height);
+		//		ob_start();
+		//		imagejpeg($image_p);
+		//		$i = ob_get_contents();
+		//		ob_end_clean();
+		//		if ($raw) {
+		//			return $i;
+		//		} else {
+		//			return base64_encode($i);
+		//		}
+	}
+
+	private byte[] readFile(File filepath) throws IOException {
+		ByteArrayOutputStream out = new ByteArrayOutputStream();
+		//write file data
+		FileInputStream fileInputStream = new FileInputStream(filepath);
+
+		// Copy the contents of the file to the output stream
+		byte[] buffer = new byte[1024];
+		int count = 0;
+
+		while ((count = fileInputStream.read(buffer)) >= 0) {
+			out.write(buffer, 0, count);
+		}                
+		fileInputStream.close();
+		return out.toByteArray();
+	}
+
+	private void preprocessProfilePicture(File filepath) {
+		// TODO Auto-generated method stub
+
+	}
+
+	/**
+	 * Set the recovery token for your account to allow you to
+	 * retrieve your password at a later stage.
+	 * @param  String token A user generated token.
+	 * @throws WhatsAppException 
+	 */
 	public void sendSetRecoveryToken(String token) throws WhatsAppException {
 		//TODO implement this
 		throw new WhatsAppException("Not yet implemented");
 	}
-	
-    /**
-     * Update the user status.
-     *
-     * @param String txt
-     *   The text of the message status to send.
-     * @throws WhatsAppException 
-     */
+
+	/**
+	 * Update the user status.
+	 *
+	 * @param String txt
+	 *   The text of the message status to send.
+	 * @throws WhatsAppException 
+	 */
 	public void sendStatusUpdate(String txt) throws WhatsAppException {
 		//TODO implement this
 		throw new WhatsAppException("Not yet implemented");
 	}
-	
-    /**
-     * Send a vCard to the user/group.
-     *
-     * @param String to
-     *   The recipient to send.
-     * @param String name
-     *   The contact name.
-     * @param VCard vCard
-     *   The contact vCard to send.
-     * @throws WhatsAppException 
-     */
+
+	/**
+	 * Send a vCard to the user/group.
+	 *
+	 * @param String to
+	 *   The recipient to send.
+	 * @param String name
+	 *   The contact name.
+	 * @param VCard vCard
+	 *   The contact vCard to send.
+	 * @throws WhatsAppException 
+	 */
 	public void sendVcard(String to, String name, Object vCard) throws WhatsAppException {
 		//TODO implement this
 		throw new WhatsAppException("Not yet implemented");
 	}
-	
-    /**
-     * Sets the bind of the new message.
-     * @throws WhatsAppException 
-     */
-	public void setNewMessageBind(String bind) throws WhatsAppException {
-		//TODO implement this
-		throw new WhatsAppException("Not yet implemented");
+
+	/**
+	 * Sets the bind of the new message.
+	 * @throws WhatsAppException 
+	 */
+	public void setNewMessageBind(MessageProcessor processor) throws WhatsAppException {
+		this.processor  = processor;
 	}
-	
-    /**
-     * Upload file to WhatsApp servers.
-     *
-     * @param String file
-     *   The uri of the file.
-     *
-     * @return String
-     *   Return the remote url or null on failure.
-     * @throws WhatsAppException 
-     */
+
+	/**
+	 * Upload file to WhatsApp servers.
+	 *
+	 * @param String file
+	 *   The uri of the file.
+	 *
+	 * @return String
+	 *   Return the remote url or null on failure.
+	 * @throws WhatsAppException 
+	 */
 	public String uploadFile(String file) throws WhatsAppException {
 		//TODO implement this
 		throw new WhatsAppException("Not yet implemented");
 	}
-	
-    /**
-     * Wait for message delivery notification.
-     * @throws WhatsAppException 
-     */
+
+	/**
+	 * Wait for message delivery notification.
+	 * @throws WhatsAppException 
+	 */
 	public void waitForMessageReceipt() throws WhatsAppException {
 		//TODO implement this
 		throw new WhatsAppException("Not yet implemented");
@@ -1040,17 +1143,17 @@ public class WhatsApi {
 		return sendMessage(to, message, null);
 	}
 
-    /**
-     * Send a text message to the user/group.
-     *
-     * @param String to
-     *   The recipient.
-     * @param String message
-     *   The text message.
-     * @param String id
-     *
-     * @return String
-     */
+	/**
+	 * Send a text message to the user/group.
+	 *
+	 * @param String to
+	 *   The recipient.
+	 * @param String message
+	 *   The text message.
+	 * @param String id
+	 *
+	 * @return String
+	 */
 	public String sendMessage(String to, String message, String id) throws WhatsAppException {
 		message = parseMessageForEmojis(message);
 		ProtocolNode bodyNode = new ProtocolNode("body", null, null, message.getBytes());
@@ -1468,93 +1571,93 @@ public class WhatsApi {
 		String filename = null;
 		String to = null;
 		String id = node.getAttribute("id");
-        Map<String, Object> messageNode = mediaQueue.get(id);
-        if (messageNode == null) {
-            //message not found, can't send!
-            eventManager().fireMediaUploadFailed(
-                phoneNumber,
-                id,
-                node,
-                messageNode,
-                "Message node not found in queue"
-            );
-            return false;
-        }
+		Map<String, Object> messageNode = mediaQueue.get(id);
+		if (messageNode == null) {
+			//message not found, can't send!
+			eventManager().fireMediaUploadFailed(
+					phoneNumber,
+					id,
+					node,
+					messageNode,
+					"Message node not found in queue"
+					);
+			return false;
+		}
 
-        ProtocolNode duplicate = node.getChild("duplicate");
-        if (duplicate != null) {
-            //file already on whatsapp servers
-            url = duplicate.getAttribute("url");
-            filesize = duplicate.getAttribute("size");
-            filetype = duplicate.getAttribute("type");
-            String[] exploded = url.split("/");  
-            filename = exploded[exploded.length-1];
-            mediaInfo = createMediaInfo(duplicate);
-        } else {
-            //upload new file
-            JSONObject json = WhatsMediaUploader.pushFile(node, messageNode, mediaFile, phoneNumber);
+		ProtocolNode duplicate = node.getChild("duplicate");
+		if (duplicate != null) {
+			//file already on whatsapp servers
+			url = duplicate.getAttribute("url");
+			filesize = duplicate.getAttribute("size");
+			filetype = duplicate.getAttribute("type");
+			String[] exploded = url.split("/");  
+			filename = exploded[exploded.length-1];
+			mediaInfo = createMediaInfo(duplicate);
+		} else {
+			//upload new file
+			JSONObject json = WhatsMediaUploader.pushFile(node, messageNode, mediaFile, phoneNumber);
 
-            if (json == null) {
-                //failed upload
-                eventManager().fireMediaUploadFailed(
-                    phoneNumber,
-                    id,
-                    node,
-                    messageNode,
-                    "Failed to push file to server"
-                );
-                return false;
-            }
+			if (json == null) {
+				//failed upload
+				eventManager().fireMediaUploadFailed(
+						phoneNumber,
+						id,
+						node,
+						messageNode,
+						"Failed to push file to server"
+						);
+				return false;
+			}
 
-            if(log.isDebugEnabled()) {
-            	log.debug("Setting mediaInfo to: "+json.toString());
-            }
-            mediaInfo = json;
-            url = json.getString("url");
-            filesize = json.getString("size");
-            filetype = json.getString("type");
-            filename = json.getString("name");
-        }
+			if(log.isDebugEnabled()) {
+				log.debug("Setting mediaInfo to: "+json.toString());
+			}
+			mediaInfo = json;
+			url = json.getString("url");
+			filesize = json.getString("size");
+			filetype = json.getString("type");
+			filename = json.getString("name");
+		}
 
-        Map<String,String> mediaAttribs = new HashMap<String, String>();
-        mediaAttribs.put("xmlns","urn:xmpp:whatsapp:mms");
-        mediaAttribs.put("type",filetype);
-        mediaAttribs.put("url",url);
-        mediaAttribs.put("file",filename);
-        mediaAttribs.put("size",filesize);
+		Map<String,String> mediaAttribs = new HashMap<String, String>();
+		mediaAttribs.put("xmlns","urn:xmpp:whatsapp:mms");
+		mediaAttribs.put("type",filetype);
+		mediaAttribs.put("url",url);
+		mediaAttribs.put("file",filename);
+		mediaAttribs.put("size",filesize);
 
-        String filepath = (String) messageNode.get("filePath");
-        to = (String) messageNode.get("to");
+		String filepath = (String) messageNode.get("filePath");
+		to = (String) messageNode.get("to");
 
-        byte[] icon = null;
-        if(filetype.equals("image")) {
-        	icon = createIcon(filepath);
-        }
-        if(filetype.equals("video")) {
-        	icon = videoThumbnail(filepath);
-        }
+		byte[] icon = null;
+		if(filetype.equals("image")) {
+			icon = createIcon(filepath);
+		}
+		if(filetype.equals("video")) {
+			icon = videoThumbnail(filepath);
+		}
 
-        ProtocolNode mediaNode = new ProtocolNode("media", mediaAttribs, null, icon);
-        /* 
-         * TODO support multiple recipients
-         */
-//        if (is_array($to)) {
-//            $this->sendBroadcast($to, $mediaNode);
-//        } else {
-//            $this->sendMessageNode($to, $mediaNode);
-//        }
-        sendMessageNode(to, mediaNode,null);
-        eventManager().fireMediaMessageSent(
-            phoneNumber,
-            to,
-            id,
-            filetype,
-            url,
-            filename,
-            filesize,
-            icon
-        );
-        return true;
+		ProtocolNode mediaNode = new ProtocolNode("media", mediaAttribs, null, icon);
+		/* 
+		 * TODO support multiple recipients
+		 */
+		//        if (is_array($to)) {
+		//            $this->sendBroadcast($to, $mediaNode);
+		//        } else {
+		//            $this->sendMessageNode($to, $mediaNode);
+		//        }
+		sendMessageNode(to, mediaNode,null);
+		eventManager().fireMediaMessageSent(
+				phoneNumber,
+				to,
+				id,
+				filetype,
+				url,
+				filename,
+				filesize,
+				icon
+				);
+		return true;
 	}
 
 	private JSONObject createMediaInfo(ProtocolNode duplicate) {
@@ -1693,10 +1796,10 @@ public class WhatsApi {
 		if (node.hasChild("x") && lastId.equals(node.getAttribute("id"))) {
 			sendNextMessage();
 		}
-		// TODO What is this???
-		//        if (newMsgBind!=null && node.hasChild("body")) {
-		//            newMsgBind.process(node);
-		//        }
+		
+		if (processor != null && node.hasChild("body")) {
+			processor.processMessage(node);
+		}
 
 		if (node.hasChild("composing")) {
 			eventManager().fireMessageComposing(
@@ -1924,8 +2027,8 @@ public class WhatsApi {
 			sendNode(messageNode);
 			eventManager().fireSendMessageReceived(
 					phoneNumber, 
-					messageHash.get("t"), 
-					msg.getAttribute("from")
+					msg.getAttribute("from"),
+					messageHash.get("t") 
 					);
 		}
 	}
@@ -2252,6 +2355,14 @@ public class WhatsApi {
 
 	public String getPhoneNumber() {
 		return phoneNumber;
+	}
+
+	public EventManager getEventManager() {
+		return eventManager;
+	}
+
+	public void setEventManager(EventManager eventManager) {
+		this.eventManager = eventManager;
 	}
 
 }
