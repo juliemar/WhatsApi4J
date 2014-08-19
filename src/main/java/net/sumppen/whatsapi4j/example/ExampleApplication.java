@@ -1,12 +1,15 @@
 package net.sumppen.whatsapi4j.example;
 
 import java.io.Console;
+import java.io.UnsupportedEncodingException;
 
 import org.apache.log4j.ConsoleAppender;
 import org.apache.log4j.Layout;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.apache.log4j.PatternLayout;
+import org.json.JSONException;
+import org.json.JSONObject;
 
 import net.sumppen.whatsapi4j.EventManager;
 import net.sumppen.whatsapi4j.MessageProcessor;
@@ -14,17 +17,18 @@ import net.sumppen.whatsapi4j.WhatsApi;
 import net.sumppen.whatsapi4j.WhatsAppException;
 
 public class ExampleApplication {
-	
+
 	private enum WhatsAppCommand {
-		send
+		send,request,register
 	}
 
 	public static void main(String[] args) {
+		boolean running = true;
+		boolean loggedIn = false;
 		Logger.getRootLogger().setLevel(Level.ALL);
 		Layout layout = new PatternLayout("%d [%t] %-5p %c %x - %m%n");
 		Logger.getRootLogger().addAppender(new ConsoleAppender(layout));
-		
-		if(args.length < 4) {
+		if(args.length != 4) {
 			System.out.println("Usage: ExampleApplication <username> <password> <id> <nick>");
 			System.exit(1);
 		}
@@ -33,15 +37,21 @@ public class ExampleApplication {
 			System.out.println("No console found. Aborting");
 			System.exit(1);
 		}
-		
+
 		String username = args[0];
 		String password = args[1];
+		if(password.length() == 0) {
+			password = null;
+		}
 		String identity = args[2];
+		if(identity.length() == 0) {
+			identity = null;
+		}
 		String nickname = args[3];
 		WhatsApi wa = null;
 		try {
 			wa = new WhatsApi(username, identity, nickname);
-			
+
 			EventManager eventManager = new ExampleEventManager();
 			wa.setEventManager(eventManager );
 			MessageProcessor mp = new ExampleMessageProcessor();
@@ -50,19 +60,43 @@ public class ExampleApplication {
 				System.out.println("Failed to connect to WhatsApp");
 				System.exit(1);
 			}
-			wa.loginWithPassword(password);
+			if(password != null) {
+				wa.loginWithPassword(password);
+				loggedIn = true;
+			}
 			String cmd;
 			ExampleMessagePoller poller = new ExampleMessagePoller(wa);
 			poller.start();
 			System.out.print("$ ");
-			while((cmd=cons.readLine()) != null) {
+			while(running && (cmd=cons.readLine()) != null) {
 				WhatsAppCommand wac = WhatsAppCommand.valueOf(cmd);
 				switch(wac) {
 				case send:
-					sendMessage(cons,wa);
+					if(loggedIn) {
+						sendMessage(cons,wa);
+					} else {
+						System.out.println("Not logged in!");
+					}
+					running = false;
 					break;
-					default: 
-						System.out.println(cmd);
+				case request:
+					if(!loggedIn) {
+						sendRequest(wa);
+						running = false;
+					} else {
+						System.out.println("Already logged in!");
+					}
+					break;
+				case register:
+					if(!loggedIn) {
+						sendRegister(cons,wa);
+						running = false;
+					} else {
+						System.out.println("Already logged in!");
+					}
+					break;
+				default: 
+					System.out.println("Unknown command: "+cmd);
 				}
 				System.out.print("$ ");
 			}
@@ -77,6 +111,21 @@ public class ExampleApplication {
 			}
 			System.exit(1);
 		}
+	}
+
+	private static void sendRegister(Console cons, WhatsApi wa) throws JSONException {
+		System.out.print("Code: ");
+		String code = cons.readLine();
+		if(code == null || code.length() == 0) {
+			return;
+		}
+		JSONObject res = wa.codeRegister(code);
+		System.out.println(res.toString(2));
+	}
+
+	private static void sendRequest(WhatsApi wa) throws WhatsAppException, JSONException, UnsupportedEncodingException {
+		JSONObject resp = wa.codeRequest("sms", null, null);
+		System.out.println("Registration sent: "+resp.toString(2));
 	}
 
 	private static void sendMessage(Console cons, WhatsApi wa) throws WhatsAppException {

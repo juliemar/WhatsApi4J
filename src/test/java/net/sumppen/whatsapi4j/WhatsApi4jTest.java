@@ -50,4 +50,20 @@ public class WhatsApi4jTest {
         }
         assertEquals(254,countries.size());
 	}
+	
+	@Test
+	public void testGenerateRequestToken() throws Exception {
+        WhatsApi whatsapi = new WhatsApi("12345678", "", "test");
+        String token = whatsapi.generateRequestToken("Finland", "401122333");
+        assertEquals("vMg5esCVsZdT2auKeWtoYLWEcCY=", token);
+	}
+
+	@Test
+	public void testCheckIdentity() throws Exception {
+        WhatsApi whatsapi = new WhatsApi("12345678", "", "test");
+        assertFalse(whatsapi.checkIdentity("e807f1fcf82d132f9bb018ca6738a19f"));
+        String id = whatsapi.buildIdentity("e807f1fcf82d132f9bb018ca6738a19f");
+        assertTrue(whatsapi.checkIdentity(id));
+        assertEquals("%b1%02%ce%1d%5e%eb%ac%2bmt%bd%a8%c8%7cg%a0p%c8%04%91",id);
+	}
 }

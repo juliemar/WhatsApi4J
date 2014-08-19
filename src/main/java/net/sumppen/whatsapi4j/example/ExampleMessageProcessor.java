@@ -6,7 +6,8 @@ import net.sumppen.whatsapi4j.ProtocolNode;
 public class ExampleMessageProcessor implements MessageProcessor {
 
 	public void processMessage(ProtocolNode message) {
-		System.out.println(message.toString());
+		System.out.print("Message received ::: ");
+		System.out.println("<<<<<<  "+message.toString()+"  >>>>>>");
 	}
 
 }
