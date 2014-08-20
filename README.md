@@ -7,6 +7,18 @@ Java adaptation of PHP WA API by venomous0x.
 
 Original PHP version is found here: https://github.com/venomous0x/WhatsAPI
 
+## Testing
+
+There is an example command line application which currently has 3 supported functions:
+	* request - Requests an SMS for registration
+	* register - Registers a code received by SMS
+	* send - Sends a message to a user
+
+You can run the example with:
+$ java -cp target/dependency/*:target/whatsapi4j-1.0.0-SNAPSHOT.jar net.sumppen.whatsapi4j.example.ExampleApplication 358401122333 'mypassword' 'mytestapplication' 'My Test Account'
+
+If you want to request an SMS or register a code, you need to leave the password field blank 
+
 ## License:
 MIT License:
 
