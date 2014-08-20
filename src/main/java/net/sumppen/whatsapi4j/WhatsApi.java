@@ -202,12 +202,38 @@ public class WhatsApi {
 	 *   - cost: Decimal amount of account.
 	 *   - currency: Currency price of account.
 	 *   - price_expiration: Price expiration in UNIX TimeStamp.
+	 * @throws WhatsAppException 
+	 * @throws JSONException 
 	 *
 	 * @throws Exception
 	 */
-	public JSONObject codeRegister(String code) {
-		//TODO implement this
-		return null;
+	public JSONObject codeRegister(String code) throws WhatsAppException, JSONException {
+		Map<String, String> phone;
+		if ((phone = dissectPhone()) == null) {
+			throw new WhatsAppException("The prived phone number is not valid.");
+		}
+		// Build the url.
+		String host = "https://"+WHATSAPP_REGISTER_HOST;
+		Map<String,String> query = new LinkedHashMap<String, String>();
+		query.put("cc",phone.get("cc")); 
+		query.put("in",phone.get("phone")); 
+		query.put("id",(identity==null?"":identity));
+		query.put("code", code);
+		query.put("c", "cookie");
+
+		JSONObject response = getResponse(host, query);
+		if(log.isDebugEnabled()) {
+			log.debug(response.toString(1));
+		}
+		if (!response.getString("status").equals("ok")) {
+			eventManager().fireCodeRegisterFailed(phoneNumber, response.getString("status"), response.getString("reason"), response.getString("retry_after"));
+			throw new WhatsAppException("An error occurred registering the registration code from WhatsApp.");
+		} else {
+			eventManager().fireCodeRegister(phoneNumber, response.getString("login"), response.getString("pw"), response.getString("type"), response.getString("expiration"), 
+					response.getString("kind"), response.getString("price"), response.getString("cost"), response.getString("currency"), response.getString("price_expiration"));
+		}
+
+		return response;
 	}
 
 	/**
@@ -289,8 +315,9 @@ public class WhatsApi {
 				eventManager().fireCodeRequest(phoneNumber, method, response.getString("length"));
 			} else {
 				if(!response.isNull("reason") && response.getString("reason").equals("too_recent")) {
-					eventManager().fireCodeRequestFailedTooRecent(phoneNumber, method, response.getString("reason"), response.getString("retry_after"));
-					throw new WhatsAppException("Code already sent. Retry after "+response.getString("retry_after")+" seconds");
+					String retry_after = (response.has("retry_after")?response.getString("retry_after"):null);
+					eventManager().fireCodeRequestFailedTooRecent(phoneNumber, method, response.getString("reason"), retry_after);
+					throw new WhatsAppException("Code already sent. Retry after "+retry_after+" seconds");
 				} else {
 					eventManager().fireCodeRequestFailed(phoneNumber, method, response.getString("reason"), (response.has("param")?response.getString("param"):null));
 					throw new WhatsAppException("There was a problem trying to request the code. Status="+response.getString("status"));
