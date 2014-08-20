@@ -77,7 +77,6 @@ public class ExampleApplication {
 					} else {
 						System.out.println("Not logged in!");
 					}
-					running = false;
 					break;
 				case request:
 					if(!loggedIn) {
@@ -113,7 +112,7 @@ public class ExampleApplication {
 		}
 	}
 
-	private static void sendRegister(Console cons, WhatsApi wa) throws JSONException {
+	private static void sendRegister(Console cons, WhatsApi wa) throws JSONException, WhatsAppException {
 		System.out.print("Code: ");
 		String code = cons.readLine();
 		if(code == null || code.length() == 0) {
