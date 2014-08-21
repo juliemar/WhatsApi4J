@@ -1,9 +1,11 @@
 package net.sumppen.whatsapi4j.example;
 
 import java.io.Console;
+import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 
 import org.apache.log4j.ConsoleAppender;
+import org.apache.log4j.FileAppender;
 import org.apache.log4j.Layout;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
@@ -27,7 +29,13 @@ public class ExampleApplication {
 		boolean loggedIn = false;
 		Logger.getRootLogger().setLevel(Level.ALL);
 		Layout layout = new PatternLayout("%d [%t] %-5p %c %x - %m%n");
-		Logger.getRootLogger().addAppender(new ConsoleAppender(layout));
+		String filename = "exampleapplication.log";
+		try {
+			Logger.getRootLogger().addAppender(new FileAppender(layout, filename));
+		} catch (IOException e1) {
+			System.err.println("Failed to open logfile");
+			e1.printStackTrace();
+		}
 		if(args.length != 4) {
 			System.out.println("Usage: ExampleApplication <username> <password> <id> <nick>");
 			System.exit(1);
@@ -69,33 +77,38 @@ public class ExampleApplication {
 			poller.start();
 			System.out.print("$ ");
 			while(running && (cmd=cons.readLine()) != null) {
-				WhatsAppCommand wac = WhatsAppCommand.valueOf(cmd);
-				switch(wac) {
-				case send:
-					if(loggedIn) {
-						sendMessage(cons,wa);
-					} else {
-						System.out.println("Not logged in!");
+				try {
+					WhatsAppCommand wac = WhatsAppCommand.valueOf(cmd);
+					switch(wac) {
+					case send:
+						if(loggedIn) {
+							sendMessage(cons,wa);
+						} else {
+							System.out.println("Not logged in!");
+						}
+						break;
+					case request:
+						if(!loggedIn) {
+							sendRequest(wa);
+							running = false;
+						} else {
+							System.out.println("Already logged in!");
+						}
+						break;
+					case register:
+						if(!loggedIn) {
+							sendRegister(cons,wa);
+							running = false;
+						} else {
+							System.out.println("Already logged in!");
+						}
+						break;
+					default: 
+						System.out.println("Unknown command: "+cmd);
 					}
-					break;
-				case request:
-					if(!loggedIn) {
-						sendRequest(wa);
-						running = false;
-					} else {
-						System.out.println("Already logged in!");
-					}
-					break;
-				case register:
-					if(!loggedIn) {
-						sendRegister(cons,wa);
-						running = false;
-					} else {
-						System.out.println("Already logged in!");
-					}
-					break;
-				default: 
-					System.out.println("Unknown command: "+cmd);
+				} catch (IllegalArgumentException e) {
+					if(cmd.length() > 0)
+						System.out.println("Unknown command: "+cmd);
 				}
 				System.out.print("$ ");
 			}
