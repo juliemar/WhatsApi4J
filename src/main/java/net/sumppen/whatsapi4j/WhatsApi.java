@@ -5,13 +5,13 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
-import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.UnsupportedEncodingException;
 import java.math.BigInteger;
 import java.net.Socket;
+import java.net.SocketTimeoutException;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.net.UnknownHostException;
@@ -28,8 +28,6 @@ import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.Semaphore;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -52,10 +50,11 @@ import org.json.JSONObject;
  */
 public class WhatsApi {
 
+	private static final int READ_DATA_WAIT = 250;
 	private final String MEDIA_FOLDER = "media";                           // The relative folder to store received media files
 	private final String PICTURES_FOLDER = "pictures";                     // The relative folder to store picture files
 	private final int PORT = 443;                                      // The port of the WhatsApp server.
-	private final int TIMEOUT_SEC = 5;                                  // The timeout for the connection with the WhatsApp servers.
+	private final int TIMEOUT_SEC = 2;                                  // The timeout for the connection with the WhatsApp servers.
 	private final String WHATSAPP_CHECK_HOST = "v.whatsapp.net/v2/exist";  // The check credentials host.
 	private final String WHATSAPP_GROUP_SERVER = "g.us";                   // The Group server hostname
 	private final String WHATSAPP_HOST = "c.whatsapp.net";                 // The hostname of the WhatsApp server.
@@ -66,7 +65,7 @@ public class WhatsApi {
 	private final String WHATSAPP_DEVICE = "Android";                      // The device name.
 	private final String WHATSAPP_VER = "2.11.301";                // The WhatsApp version.
 	private final String WHATSAPP_USER_AGENT = "WhatsApp/2.11.301 Android/4.3 Device/GalaxyS3";// User agent used in request/registration code.
-	
+
 
 	private final Logger log = Logger.getLogger(WhatsApi.class);
 	private String identity;
@@ -331,27 +330,27 @@ public class WhatsApi {
 	}
 
 	protected String generateRequestToken(String country, String phone) throws IOException, NoSuchAlgorithmException {
-        String signature = "MIIDMjCCAvCgAwIBAgIETCU2pDALBgcqhkjOOAQDBQAwfDELMAkGA1UEBhMCVVMxEzARBgNVBAgTCkNhbGlmb3JuaWExFDASBgNVBAcTC1NhbnRhIENsYXJhMRYwFAYDVQQKEw1XaGF0c0FwcCBJbmMuMRQwEgYDVQQLEwtFbmdpbmVlcmluZzEUMBIGA1UEAxMLQnJpYW4gQWN0b24wHhcNMTAwNjI1MjMwNzE2WhcNNDQwMjE1MjMwNzE2WjB8MQswCQYDVQQGEwJVUzETMBEGA1UECBMKQ2FsaWZvcm5pYTEUMBIGA1UEBxMLU2FudGEgQ2xhcmExFjAUBgNVBAoTDVdoYXRzQXBwIEluYy4xFDASBgNVBAsTC0VuZ2luZWVyaW5nMRQwEgYDVQQDEwtCcmlhbiBBY3RvbjCCAbgwggEsBgcqhkjOOAQBMIIBHwKBgQD9f1OBHXUSKVLfSpwu7OTn9hG3UjzvRADDHj+AtlEmaUVdQCJR+1k9jVj6v8X1ujD2y5tVbNeBO4AdNG/yZmC3a5lQpaSfn+gEexAiwk+7qdf+t8Yb+DtX58aophUPBPuD9tPFHsMCNVQTWhaRMvZ1864rYdcq7/IiAxmd0UgBxwIVAJdgUI8VIwvMspK5gqLrhAvwWBz1AoGBAPfhoIXWmz3ey7yrXDa4V7l5lK+7+jrqgvlXTAs9B4JnUVlXjrrUWU/mcQcQgYC0SRZxI+hMKBYTt88JMozIpuE8FnqLVHyNKOCjrh4rs6Z1kW6jfwv6ITVi8ftiegEkO8yk8b6oUZCJqIPf4VrlnwaSi2ZegHtVJWQBTDv+z0kqA4GFAAKBgQDRGYtLgWh7zyRtQainJfCpiaUbzjJuhMgo4fVWZIvXHaSHBU1t5w//S0lDK2hiqkj8KpMWGywVov9eZxZy37V26dEqr/c2m5qZ0E+ynSu7sqUD7kGx/zeIcGT0H+KAVgkGNQCo5Uc0koLRWYHNtYoIvt5R3X6YZylbPftF/8ayWTALBgcqhkjOOAQDBQADLwAwLAIUAKYCp0d6z4QQdyN74JDfQ2WCyi8CFDUM4CaNB+ceVXdKtOrNTQcc0e+t";
-        String classesMd5 = "pZ3J/O+F3HXOyx8YixzvPQ==";
+		String signature = "MIIDMjCCAvCgAwIBAgIETCU2pDALBgcqhkjOOAQDBQAwfDELMAkGA1UEBhMCVVMxEzARBgNVBAgTCkNhbGlmb3JuaWExFDASBgNVBAcTC1NhbnRhIENsYXJhMRYwFAYDVQQKEw1XaGF0c0FwcCBJbmMuMRQwEgYDVQQLEwtFbmdpbmVlcmluZzEUMBIGA1UEAxMLQnJpYW4gQWN0b24wHhcNMTAwNjI1MjMwNzE2WhcNNDQwMjE1MjMwNzE2WjB8MQswCQYDVQQGEwJVUzETMBEGA1UECBMKQ2FsaWZvcm5pYTEUMBIGA1UEBxMLU2FudGEgQ2xhcmExFjAUBgNVBAoTDVdoYXRzQXBwIEluYy4xFDASBgNVBAsTC0VuZ2luZWVyaW5nMRQwEgYDVQQDEwtCcmlhbiBBY3RvbjCCAbgwggEsBgcqhkjOOAQBMIIBHwKBgQD9f1OBHXUSKVLfSpwu7OTn9hG3UjzvRADDHj+AtlEmaUVdQCJR+1k9jVj6v8X1ujD2y5tVbNeBO4AdNG/yZmC3a5lQpaSfn+gEexAiwk+7qdf+t8Yb+DtX58aophUPBPuD9tPFHsMCNVQTWhaRMvZ1864rYdcq7/IiAxmd0UgBxwIVAJdgUI8VIwvMspK5gqLrhAvwWBz1AoGBAPfhoIXWmz3ey7yrXDa4V7l5lK+7+jrqgvlXTAs9B4JnUVlXjrrUWU/mcQcQgYC0SRZxI+hMKBYTt88JMozIpuE8FnqLVHyNKOCjrh4rs6Z1kW6jfwv6ITVi8ftiegEkO8yk8b6oUZCJqIPf4VrlnwaSi2ZegHtVJWQBTDv+z0kqA4GFAAKBgQDRGYtLgWh7zyRtQainJfCpiaUbzjJuhMgo4fVWZIvXHaSHBU1t5w//S0lDK2hiqkj8KpMWGywVov9eZxZy37V26dEqr/c2m5qZ0E+ynSu7sqUD7kGx/zeIcGT0H+KAVgkGNQCo5Uc0koLRWYHNtYoIvt5R3X6YZylbPftF/8ayWTALBgcqhkjOOAQDBQADLwAwLAIUAKYCp0d6z4QQdyN74JDfQ2WCyi8CFDUM4CaNB+ceVXdKtOrNTQcc0e+t";
+		String classesMd5 = "pZ3J/O+F3HXOyx8YixzvPQ==";
 
-        byte[] key2 = base64_decode("/UIGKU1FVQa+ATM2A0za7G2KI9S/CwPYjgAbc67v7ep42eO/WeTLx1lb1cHwxpsEgF4+PmYpLd2YpGUdX/A2JQitsHzDwgcdBpUf7psX1BU=");
-        ByteArrayOutputStream data = new ByteArrayOutputStream();
-        data.write(base64_decode(signature));
-        data.write(base64_decode(classesMd5));
-        data.write(phone.getBytes());
+		byte[] key2 = base64_decode("/UIGKU1FVQa+ATM2A0za7G2KI9S/CwPYjgAbc67v7ep42eO/WeTLx1lb1cHwxpsEgF4+PmYpLd2YpGUdX/A2JQitsHzDwgcdBpUf7psX1BU=");
+		ByteArrayOutputStream data = new ByteArrayOutputStream();
+		data.write(base64_decode(signature));
+		data.write(base64_decode(classesMd5));
+		data.write(phone.getBytes());
 
-        ByteArrayOutputStream opad = new ByteArrayOutputStream();
-        ByteArrayOutputStream ipad = new ByteArrayOutputStream();
-        for(int i = 0; i < 64; ++i) {
-        	opad.write(0x5c ^ key2[i]);
-        	ipad.write(0x36 ^ key2[i]);
-        }
-        ipad.write(data.toByteArray());
-        opad.write(hash("SHA-1", ipad.toByteArray()));
-        
-        byte[] output = hash("SHA-1", opad.toByteArray());
-    
-        return base64_encode(output);	}
+		ByteArrayOutputStream opad = new ByteArrayOutputStream();
+		ByteArrayOutputStream ipad = new ByteArrayOutputStream();
+		for(int i = 0; i < 64; ++i) {
+			opad.write(0x5c ^ key2[i]);
+			ipad.write(0x36 ^ key2[i]);
+		}
+		ipad.write(data.toByteArray());
+		opad.write(hash("SHA-1", ipad.toByteArray()));
+
+		byte[] output = hash("SHA-1", opad.toByteArray());
+
+		return base64_encode(output);	}
 
 	private byte[] hash(String algo, byte[] dataBytes) throws NoSuchAlgorithmException {
 		MessageDigest md;
@@ -1518,6 +1517,9 @@ public class WhatsApi {
 	}
 
 	private void processInboundData(byte[] readData) throws IncompleteMessageException, InvalidMessageException, InvalidTokenException, IOException, WhatsAppException, JSONException, NoSuchAlgorithmException {
+		if(readData == null) {
+			return;
+		}
 		ProtocolNode node = reader.nextTree(readData);
 		if(node != null) {
 			processInboundDataNode(node);
@@ -2186,15 +2188,19 @@ public class WhatsApi {
 		if(socket != null && socket.isConnected()) {
 			InputStream stream = socket.getInputStream();
 			buf = new byte[1042];
-			int ret = stream.read(buf);
-			if(ret > 0) {
-
-			} else {
-				if(ret == -1) {
-					log.error("socket EOF, closing socket...");
-					socket.close();
-					socket = null;
+			try {
+				int ret = stream.read(buf);
+				if(ret > 0) {
+					
+				} else {
+					if(ret == -1) {
+						log.error("socket EOF, closing socket...");
+						socket.close();
+						socket = null;
+					}
 				}
+			} catch (SocketTimeoutException e) {
+				
 			}
 		}
 		return buf;
@@ -2331,7 +2337,7 @@ public class WhatsApi {
 
 	private JSONObject getResponse(String host, Map<String,String> query) throws JSONException {
 		Client client = ClientBuilder.newClient();
-		
+
 		StringBuilder url = new StringBuilder();
 		url.append(host);
 		String delimiter = "?";
@@ -2414,10 +2420,10 @@ public class WhatsApi {
 	private void waitForServer(String id) throws IncompleteMessageException, InvalidMessageException, InvalidTokenException, IOException, WhatsAppException, JSONException, NoSuchAlgorithmException {
 		Date start = new Date();
 		Date now = start;
-		do {
+		while (!checkReceivedId(id) && (now.getTime() - start.getTime()) < 5000) {
 			pollMessages();
 			now = new Date();
-		} while (!checkReceivedId(id) && (now.getTime() - start.getTime()) < 5000);
+		}
 		if(log.isDebugEnabled()) {
 			log.debug("waitForServer done waiting for "+id);
 		}
@@ -2448,8 +2454,11 @@ public class WhatsApi {
 			pollLock.unlock();
 		} else {
 			// Someone else polling, so we just wait for the results
-			pollLock.lock();
-			pollLock.unlock();
+			try {
+				Thread.sleep(250);
+			} catch (InterruptedException e) {
+				log.info("Thread interrupted: "+e.getMessage());
+			}
 		}
 	}
 
